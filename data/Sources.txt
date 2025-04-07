@@ -1,1 +1,2 @@
 Minimum Wage: https://www.ncsl.org/labor-and-employment/state-minimum-wages
+State Populations 2020-2024: https://www.census.gov/data/datasets/time-series/demo/popest/2020s-counties-total.html#v2024
