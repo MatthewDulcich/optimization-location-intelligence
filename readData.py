@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 def getMinWage(filepath='data/StateMinimumWage.txt'):
     data = pd.read_csv(filepath)
@@ -41,6 +42,17 @@ def getIncome(filepath='data/ACSST5Y2023.S1901-Data.csv'):
                  axis = 1, inplace = True)
     # Remove Puerto Rico from the data
     data = data.loc[data['State']!='Puerto Rico']
+
+    # Fill missing values for median income
+    data.loc[data['MedianIncome'].str.contains('-'),'MedianIncome'] = 0
+    data['MedianIncome'] = data['MedianIncome'].astype(int)
+
+    # Get ratios of income to max income
+    max_mean_income = data['MeanIncome'].max()
+    max_median_income = data['MedianIncome'].max()
+
+    data['MeanIncomeRatio'] = data['MeanIncome']/max_mean_income
+    data['MedianIncomeRatio'] = data['MedianIncome']/max_median_income
 
     return data
 
