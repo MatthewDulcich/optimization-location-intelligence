@@ -27,7 +27,8 @@ def getIncome(filepath='data/ACSST5Y2023.S1901-Data.csv'):
     #mean_cols = [i for i in data.columns if 'Mean' in i and 'Margin of Error' not in i]
 
     # List necessary columns
-    columns = ['County',
+    columns = ['Geography',
+               'County',
                'State',
                'Estimate!!Households!!Median income (dollars)',
                'Estimate!!Households!!Mean income (dollars)']
@@ -35,7 +36,8 @@ def getIncome(filepath='data/ACSST5Y2023.S1901-Data.csv'):
     # Remove unnecessary columns and provide better column names
     data.drop([i for i in data.columns if i not in columns],axis = 1,inplace = True)
     data.rename({'Estimate!!Households!!Median income (dollars)':'MedianIncome',
-                 'Estimate!!Households!!Mean income (dollars)':'MeanIncome'},
+                 'Estimate!!Households!!Mean income (dollars)':'MeanIncome',
+                 'Geography':'CountyID'},
                  axis = 1, inplace = True)
     # Remove Puerto Rico from the data
     data = data.loc[data['State']!='Puerto Rico']
