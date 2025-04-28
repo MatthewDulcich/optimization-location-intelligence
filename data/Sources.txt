@@ -2,4 +2,10 @@ Minimum Wage: https://www.ncsl.org/labor-and-employment/state-minimum-wages
 State Populations 2020-2024: https://www.census.gov/data/datasets/time-series/demo/popest/2020s-counties-total.html#v2024
 2023 Household mean/median income: https://data.census.gov/table/ACSST5Y2023.S1901?g=860XX00US68856
 https://www.zillow.com/research/data/
-https://www.commercialedge.com/blog/national-office-report/?utm_source=chatgpt.com
+https://www.commercialedge.com/blog/national-office-report/
+
+
+Why we used 0.7 urban to rural multiplier
+Implementing a 0.7 multiplier to estimate rural commercial rents relative to urban rates is substantiated by empirical data highlighting significant disparities between these markets. A study in Itasca County, Minnesota, revealed that the average annual rental rate per square foot for commercial spaces is approximately $8.94, with retail/office spaces averaging $10.92 and industrial/warehousing at $5.44 . In contrast, urban areas like Rockville, Maryland, report average office rents of $35.95 per square foot, with Class A spaces reaching $40.60 . This stark difference underscores the lower demand and rental rates in rural areas. By applying a 0.7 multiplier, we align our model with these observed market differences, ensuring more accurate and realistic rent estimations across diverse regions.
+https://www.commercialcafe.com/office-market-trends/us/md/rockville/
+https://www.itascadv.org/media/userfiles/subsite_104/files/IEDC%20Commercial%20Rent%20Study.pdf
