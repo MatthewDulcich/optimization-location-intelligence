@@ -20,3 +20,4 @@ Based on industry standards and real-world examples, a typical fast food restaur
 Why we use our 5000 urban threshold
 The U.S. Census Bureau’s 2020 update to urban area definitions increased the minimum population threshold from 2,500 to 5,000 people, or alternatively, 2,000 housing units . This change aims to better reflect contemporary settlement patterns and ensure consistency in urban classifications. Therefore, setting an URBAN_THRESHOLD of 5,000 aligns with the current federal standard. ￼ ￼
 https://www.federalregister.gov/documents/2022/03/24/2022-06180/urban-area-criteria-for-the-2020-census-final-criteria
+https://www.census.gov/newsroom/blogs/random-samplings/2022/12/redefining-urban-areas-following-2020-census.html
