@@ -2,9 +2,21 @@ import pandas as pd
 import numpy as np
 from readData import getPopulation  # Import the getPopulation function
 
+# ---- Configurable Values ----
+ZHVI_CSV_PATH = 'data/County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv'  # Path to ZHVI data
+URBAN_THRESHOLD = 150000  # Population threshold for urban classification
+SUBURBAN_THRESHOLD = 50000  # Population threshold for suburban classification
+STORE_SIZE_SQFT = 2500  # Assumed store size in square feet
+
+# Multipliers for area types
+MULTIPLIERS = {
+    'Urban': 2.25,
+    'Suburban': 1.75,
+    'Rural': 1.5
+}
+
 # ---- Step 1: Load Zillow ZHVI CSV
-zhvi_path = 'data/County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv'
-zhvi_df = pd.read_csv(zhvi_path)
+zhvi_df = pd.read_csv(ZHVI_CSV_PATH)
 
 # ---- Step 2: Load Population Data using getPopulation()
 population_df = getPopulation()  # Use the function to get the population data
@@ -32,18 +44,25 @@ zhvi_df.dropna(subset=['ZHVI'], inplace=True)
 # ---- Step 4: Merge ZHVI + Population
 merged_df = zhvi_df.merge(population_df, on=['County', 'State'], how='left')
 
-# ---- Step 5: Classify Urban vs Rural
-urban_threshold = 150000
-merged_df['Urban'] = np.where(merged_df['Population'] >= urban_threshold, 1, 0)
+# ---- Step 5: Classify Urban, Suburban, and Rural
+def classify_area(population):
+    if population >= URBAN_THRESHOLD:
+        return 'Urban'
+    elif population >= SUBURBAN_THRESHOLD:
+        return 'Suburban'
+    else:
+        return 'Rural'
 
-# ---- Step 6: Set Multiplier Based on Urban/Rural
-merged_df['Multiplier'] = np.where(merged_df['Urban'] == 1, 2.25, 1.5)
+merged_df['Area_Type'] = merged_df['Population'].apply(classify_area)
+
+# ---- Step 6: Set Multiplier Based on Area Type
+merged_df['Multiplier'] = merged_df['Area_Type'].map(MULTIPLIERS)
 
 # ---- Step 7: Calculate Commercial Rent
 merged_df['Commercial_rent_per_sqft_year'] = merged_df['ZHVI'] * merged_df['Multiplier']
 
 # Assume store size
-store_size_sqft = 2500
-merged_df['Estimated_annual_rent'] = (merged_df['Commercial_rent_per_sqft_year'] * store_size_sqft).astype(int)
+merged_df['Estimated_annual_rent'] = (merged_df['Commercial_rent_per_sqft_year'] * STORE_SIZE_SQFT).astype(int)
 
-print(merged_df[['County', 'State', 'Population', 'Urban', 'Multiplier', 'Commercial_rent_per_sqft_year', 'Estimated_annual_rent']].head())
+# ---- Step 8: Output Results
+print(merged_df[['County', 'State', 'Population', 'Area_Type', 'Multiplier', 'Commercial_rent_per_sqft_year', 'Estimated_annual_rent']].head())
