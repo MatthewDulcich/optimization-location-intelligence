@@ -1,3 +1,23 @@
 Minimum Wage: https://www.ncsl.org/labor-and-employment/state-minimum-wages
 State Populations 2020-2024: https://www.census.gov/data/datasets/time-series/demo/popest/2020s-counties-total.html#v2024
 2023 Household mean/median income: https://data.census.gov/table/ACSST5Y2023.S1901?g=860XX00US68856
+https://www.zillow.com/research/data/
+https://www.commercialedge.com/blog/national-office-report/
+
+
+Why we used 0.7 urban to rural multiplier
+Implementing a 0.7 multiplier to estimate rural commercial rents relative to urban rates is substantiated by empirical data highlighting significant disparities between these markets. A study in Itasca County, Minnesota, revealed that the average annual rental rate per square foot for commercial spaces is approximately $8.94, with retail/office spaces averaging $10.92 and industrial/warehousing at $5.44 . In contrast, urban areas like Rockville, Maryland, report average office rents of $35.95 per square foot, with Class A spaces reaching $40.60 . This stark difference underscores the lower demand and rental rates in rural areas. By applying a 0.7 multiplier, we align our model with these observed market differences, ensuring more accurate and realistic rent estimations across diverse regions.
+https://www.commercialcafe.com/office-market-trends/us/md/rockville/
+https://www.itascadv.org/media/userfiles/subsite_104/files/IEDC%20Commercial%20Rent%20Study.pdf
+
+Why we use our average store square foot size
+The average size of a fast food restaurant typically ranges between 1,200 and 2,500 square feet, depending on the brand, service model, and location. For example, Dairy Queen’s “Core 46” prototype features a 2,207-square-foot building with seating for 46 customers and a drive-thru lane . Similarly, Wayback Burgers locations average between 1,600 and 1,800 square feet, while traditional McDonald’s and Burger King restaurants are approximately 4,000 square feet . Chick-fil-A’s standard locations range from 5,000 to 6,500 square feet, though their new digital-only prototype in New York City is 3,500 square feet, primarily dedicated to kitchen and pickup areas . These variations reflect the diverse operational needs and customer service models across different fast food chains. 
+https://fourteenfoods.net/real-estate__trashed/site-criteria/
+https://waybackburgers.com/franchising/blog/restaurant-revenue-per-square-foot/
+https://www.the-sun.com/money/10812955/chick-fil-a-open-first-digital-only-restaurant/
+Based on industry standards and real-world examples, a typical fast food restaurant occupies between 1,200 and 2,500 square feet, depending on factors like service model, kitchen size, and seating capacity. For instance, a standard Dairy Queen “Core 46” prototype is approximately 2,207 square feet with seating for 46 guests . Similarly, Chick-fil-A’s digital-only location in New York City spans 3,500 square feet, primarily dedicated to kitchen and pickup areas . Given these figures, setting an average store size of 2,000 square feet is a reasonable and supported estimate for fast food restaurant planning.
+
+Why we use our 5000 urban threshold
+The U.S. Census Bureau’s 2020 update to urban area definitions increased the minimum population threshold from 2,500 to 5,000 people, or alternatively, 2,000 housing units . This change aims to better reflect contemporary settlement patterns and ensure consistency in urban classifications. Therefore, setting an URBAN_THRESHOLD of 5,000 aligns with the current federal standard. ￼ ￼
+https://www.federalregister.gov/documents/2022/03/24/2022-06180/urban-area-criteria-for-the-2020-census-final-criteria
+https://www.census.gov/newsroom/blogs/random-samplings/2022/12/redefining-urban-areas-following-2020-census.html
