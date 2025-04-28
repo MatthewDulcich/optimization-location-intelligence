@@ -6,14 +6,24 @@ from readData import getPopulation
 ZHVI_CSV_PATH = 'data/County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv'
 COMMERCIAL_RENT_CSV_PATH = 'data/limited_commercial_rent_data.csv'
 URBAN_THRESHOLD = 50000
-SUBURBAN_THRESHOLD = 5000
 STORE_SIZE_SQFT = 2500  # Size of the store
+RURAL_MULTIPLIER_FACTOR = 0.7  # Rural multiplier is 70% of urban
 
-# Default multipliers if no matching market found
-DEFAULT_MULTIPLIERS = {
-    'Urban': 2.25,
-    'Suburban': 1.75,
-    'Rural': 1.5
+# State name to abbreviation mapping
+state_to_abbrev = {
+    'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR',
+    'California': 'CA', 'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE',
+    'Florida': 'FL', 'Georgia': 'GA', 'Hawaii': 'HI', 'Idaho': 'ID',
+    'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA', 'Kansas': 'KS',
+    'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS',
+    'Missouri': 'MO', 'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV',
+    'New Hampshire': 'NH', 'New Jersey': 'NJ', 'New Mexico': 'NM', 'New York': 'NY',
+    'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH', 'Oklahoma': 'OK',
+    'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+    'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT',
+    'Vermont': 'VT', 'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV',
+    'Wisconsin': 'WI', 'Wyoming': 'WY'
 }
 
 def calculate_rent_estimation():
@@ -28,6 +38,9 @@ def calculate_rent_estimation():
         population_df = population_df[['County', 'State', latest_year]]
         population_df.rename(columns={latest_year: 'Population'}, inplace=True)
 
+    # Map full state names to abbreviations
+    population_df['State'] = population_df['State'].map(state_to_abbrev)
+
     # Extract latest month for ZHVI
     month_cols = zhvi_df.columns[zhvi_df.columns.str.match(r'^\d{4}-\d{2}-\d{2}$')]
     latest_month = month_cols[-1]
@@ -37,6 +50,10 @@ def calculate_rent_estimation():
         'StateName': 'State',
         latest_month: 'ZHVI'
     }, inplace=True)
+
+    # Clean County Names AFTER renaming
+    zhvi_df['County'] = zhvi_df['County'].str.replace(' County', '', regex=False).str.strip()
+    population_df['County'] = population_df['County'].str.replace(' County', '', regex=False).str.strip()
 
     zhvi_df.dropna(subset=['ZHVI'], inplace=True)
 
@@ -49,15 +66,13 @@ def calculate_rent_estimation():
             return 'Rural'  # Default fallback
         if population >= URBAN_THRESHOLD:
             return 'Urban'
-        elif population >= SUBURBAN_THRESHOLD:
-            return 'Suburban'
         else:
             return 'Rural'
 
     merged_df['Area_Type'] = merged_df['Population'].apply(classify_area)
 
-    # Clean and match county names
-    merged_df['County_cleaned'] = merged_df['County'].str.replace(' County', '', regex=False).str.strip()
+    # Clean and match county names for commercial rent
+    merged_df['County_cleaned'] = merged_df['County'].str.strip()
     commercial_rent_df['Market'] = commercial_rent_df['Market'].str.strip()
     commercial_rent_df['Price Per Sq. Ft.'] = commercial_rent_df['Price Per Sq. Ft.'].replace('[\$,]', '', regex=True).astype(float)
 
@@ -70,10 +85,19 @@ def calculate_rent_estimation():
     # Calculate multiplier
     merged_df['Calculated_Multiplier'] = merged_df['Price Per Sq. Ft.'] / merged_df['Estimated_Residential_Rent_Per_Sqft']
 
-    # Fill missing multipliers with default by Area_Type
+    # Compute Urban average
+    urban_avg = merged_df.loc[merged_df['Area_Type'] == 'Urban', 'Calculated_Multiplier'].mean()
+
+    # Adjust rural to be 70% of urban average
+    adjusted_rural_multiplier = urban_avg * RURAL_MULTIPLIER_FACTOR
+
+    # Fill missing multipliers
     merged_df['Final_Multiplier'] = merged_df['Calculated_Multiplier']
-    for area_type, default_multiplier in DEFAULT_MULTIPLIERS.items():
-        merged_df.loc[(merged_df['Area_Type'] == area_type) & (merged_df['Final_Multiplier'].isna()), 'Final_Multiplier'] = default_multiplier
+    merged_df.loc[(merged_df['Area_Type'] == 'Urban') & (merged_df['Final_Multiplier'].isna()), 'Final_Multiplier'] = urban_avg
+    merged_df.loc[(merged_df['Area_Type'] == 'Rural') & (merged_df['Final_Multiplier'].isna()), 'Final_Multiplier'] = adjusted_rural_multiplier
+
+    print(f"Urban Average Multiplier: {urban_avg:.2f}")
+    print(f"Adjusted Rural Multiplier (70% of Urban): {adjusted_rural_multiplier:.2f}")
 
     # Calculate commercial rent per sqft per year
     merged_df['Commercial_rent_per_sqft_year'] = merged_df['Estimated_Residential_Rent_Per_Sqft'] * merged_df['Final_Multiplier']
