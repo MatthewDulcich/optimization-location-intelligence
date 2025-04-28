@@ -3,9 +3,11 @@ import numpy as np
 from readData import getPopulation  # Import the getPopulation function
 
 # ---- Configurable Values ----
+# Based on the U.S. Census Bureau's definitions and classifications
+# https://dol.ny.gov/system/files/documents/2022/11/urban-rural-classification-and-2020-urban-area-criteria-slides.pdf?utm_source=chatgpt.com
 ZHVI_CSV_PATH = 'data/County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv'  # Path to ZHVI data
-URBAN_THRESHOLD = 150000  # Population threshold for urban classification
-SUBURBAN_THRESHOLD = 50000  # Population threshold for suburban classification
+URBAN_THRESHOLD = 50000  # Population threshold for urban classification
+SUBURBAN_THRESHOLD = 5000  # Population threshold for suburban classification
 STORE_SIZE_SQFT = 2500  # Assumed store size in square feet
 
 # Multipliers for area types
