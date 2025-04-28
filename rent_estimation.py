@@ -5,8 +5,8 @@ from readData import getPopulation
 # ---- Configurable Values ----
 ZHVI_CSV_PATH = 'data/County_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv'
 COMMERCIAL_RENT_CSV_PATH = 'data/limited_commercial_rent_data.csv'
-URBAN_THRESHOLD = 50000
-STORE_SIZE_SQFT = 2500  # Size of the store
+URBAN_THRESHOLD = 5000
+STORE_SIZE_SQFT = 2000  # Size of the store
 RURAL_MULTIPLIER_FACTOR = 0.7  # Rural multiplier is 70% of urban
 
 # State name to abbreviation mapping
