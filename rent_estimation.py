@@ -57,8 +57,8 @@ def calculate_rent_estimation():
 
     zhvi_df.dropna(subset=['ZHVI'], inplace=True)
 
-    # Merge ZHVI and Population
-    merged_df = zhvi_df.merge(population_df, on=['County', 'State'], how='left')
+    # Merge ZHVI and Population (outer join to keep all states in population_df)
+    merged_df = population_df.merge(zhvi_df, on=['County', 'State'], how='left')
 
     # Classify area
     def classify_area(population):
@@ -96,14 +96,22 @@ def calculate_rent_estimation():
     merged_df.loc[(merged_df['Area_Type'] == 'Urban') & (merged_df['Final_Multiplier'].isna()), 'Final_Multiplier'] = urban_avg
     merged_df.loc[(merged_df['Area_Type'] == 'Rural') & (merged_df['Final_Multiplier'].isna()), 'Final_Multiplier'] = adjusted_rural_multiplier
 
-    print(f"Urban Average Multiplier: {urban_avg:.2f}")
-    print(f"Adjusted Rural Multiplier (70% of Urban): {adjusted_rural_multiplier:.2f}")
-
     # Calculate commercial rent per sqft per year
     merged_df['Commercial_rent_per_sqft_year'] = merged_df['Estimated_Residential_Rent_Per_Sqft'] * merged_df['Final_Multiplier']
 
     # Calculate estimated annual rent for store size
     merged_df['Estimated_annual_rent'] = (merged_df['Commercial_rent_per_sqft_year'] * STORE_SIZE_SQFT).round(2)
+
+    # Handle states not in Zillow dataset
+    avg_rent_per_sqft = merged_df['Commercial_rent_per_sqft_year'].mean()  # Average rent per square foot
+    avg_annual_rent = merged_df['Estimated_annual_rent'].mean()  # Average annual rent
+
+    # Fill missing values for states not in Zillow dataset
+    merged_df['Commercial_rent_per_sqft_year'].fillna(avg_rent_per_sqft, inplace=True)
+    merged_df['Estimated_annual_rent'].fillna(avg_annual_rent, inplace=True)
+
+    print(f"Average Rent Per Sqft: {avg_rent_per_sqft:.2f}")
+    print(f"Average Annual Rent: {avg_annual_rent:.2f}")
 
     # Map state abbreviations back to full names
     abbrev_to_state = {v: k for k, v in state_to_abbrev.items()}
@@ -113,4 +121,6 @@ def calculate_rent_estimation():
 
 if __name__ == "__main__":
     result_df = calculate_rent_estimation()
-    print(result_df[['County', 'State', 'Population', 'Area_Type', 'Final_Multiplier', 'Commercial_rent_per_sqft_year', 'Estimated_annual_rent']])
+    print(result_df[['County', 'State', 'Population', 'Area_Type', 'Commercial_rent_per_sqft_year', 'Estimated_annual_rent']])
+    unique_states = result_df['State'].nunique()
+    print(f"Total unique states: {unique_states}")
