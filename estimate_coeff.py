@@ -1,32 +1,14 @@
-"""
-1. This script does the following:
-- Creates baseline food access metric (baseline_L) using restaurant density
-- Applies demographic weighting through normalized features and predefined correlations
-- Balances baseline and weighted components to form composite metric (L)
-- Enforces metric positivity and data stability with clipping/Nan handling
-- Normalizes final metric to per-1,000 residents for cross-region comparison
-"""
-
 import pandas as pd
-import numpy as np
 from scipy.stats import pearsonr
-
-import pandas as pd
 import numpy as np
-from scipy.stats import pearsonr
 
+# Load your DataFrame
+data = pd.read_csv("data.csv")
 
-# 1. Calculate a baseline L using population and total restaurants (avoid 0)
-df['baseline_L'] = (
-    (df['totalPopulation'] + 1e-5) * 
-    (df['totalRestaurants'] + 1e-5) / 
-    (df['totalPopulation'] + 1e-5)  # Simplified to totalRestaurants, but ensures > 0
-)
-
-# Identify restaurant percentage columns (ending with 'Percent')
-restaurant_cols = [col for col in df.columns if col.endswith('Percent') and col != 'totalPopulation']
-
-# Identify demographic columns
+# ======================================================================
+# Step 1: Preprocess Data (Handle Missing Values and Zero Variance)
+# ======================================================================
+# Define demographic columns first to avoid overlap with restaurant_cols
 demographic_cols = [
     'hispanicOrLatinoPercent', 'blackPercent', 'asianNativeHawaiianOtherPacificIslanderPercent',
     'medianHouseholdIncome', 'aged65AndOlder', 'educationLessThanCollegePercent',
@@ -34,33 +16,98 @@ demographic_cols = [
     'physicalInactivityPercent', 'totalPopulation', 'whitePercent'
 ]
 
-# Initialize weighted_L with zeros
+# Define restaurant columns as Percent columns NOT in demographic_cols
+restaurant_cols = [col for col in data.columns if col.endswith('Percent') and col not in demographic_cols]
+
+# Impute missing values with 0 for simplicity (adjust if better methods exist)
+data[restaurant_cols] = data[restaurant_cols].fillna(0)
+data[demographic_cols] = data[demographic_cols].fillna(0)
+
+# ======================================================================
+# Step 2: Compute Baseline L (Guaranteed Non-Zero)
+# ======================================================================
+# Avoid division by zero: add epsilon to totalPopulation and totalRestaurants
+epsilon = 1e-5
+df = data.copy()
+df['baseline_L'] = (
+    (df['totalPopulation'] + epsilon) * 
+    (df['totalRestaurants'] + epsilon)
+)
+df['baseline_L'] = df['baseline_L'].replace(0, epsilon)  # Ensure no zeros
+
+# ======================================================================
+# Step 3: Compute Significant Correlations (Skip Invalid/Zero-Variance Pairs)
+# ======================================================================
+results = []
+for r_col in restaurant_cols:
+    for d_col in demographic_cols:
+        subset = df[[r_col, d_col]].dropna()
+        if len(subset) < 10:
+            continue
+        # Calculate variances as scalars
+        var_r = subset[r_col].var()
+        var_d = subset[d_col].var()
+        # Skip if any variance is too low (use absolute value checks)
+        if var_r < 1e-10 or var_d < 1e-10:
+            continue
+        try:
+            corr, p_value = pearsonr(subset[r_col], subset[d_col])
+            if np.isnan(corr) or np.isinf(corr):
+                continue
+            results.append((r_col, d_col, corr, p_value))
+        except:
+            continue
+
+corr_df = pd.DataFrame(results, columns=['RestaurantType', 'Demographic', 'Correlation', 'PValue'])
+corr_df = corr_df.dropna()
+
+# Bonferroni adjustment
+alpha = 0.05
+n_tests = len(corr_df)
+corr_df['PValueAdj'] = np.minimum(corr_df['PValue'] * n_tests, 1.0)
+corr_df['Significant'] = corr_df['PValueAdj'] < alpha
+
+# Filter strong correlations
+strong_corr_df = corr_df[
+    (corr_df['Significant']) & 
+    (np.abs(corr_df['Correlation']) > 0.3)
+].sort_values(by='Correlation', ascending=False)
+
+# ======================================================================
+# Step 4: Calculate Weighted Contributions (Handle Zero Variance in Normalization)
+# ======================================================================
+weights_dict = {}
+for _, row in strong_corr_df.iterrows():
+    r_col = row['RestaurantType']
+    d_col = row['Demographic']
+    corr = row['Correlation']
+    if r_col not in weights_dict:
+        weights_dict[r_col] = []
+    weights_dict[r_col].append((d_col, corr))
+
 df['weighted_L'] = 0.0
 
 for r_col, d_cols in weights_dict.items():
     for d_col, corr in d_cols:
-        # Normalize demographic column to [0, 1], fill NaN with 0
+        # Normalize demographic column safely
         d_min = df[d_col].min()
         d_max = df[d_col].max()
-        d_range = d_max - d_min + 1e-10  # Avoid division by zero
-        d_norm = (df[d_col].fillna(0) - d_min) / d_range
-        
-        # Add weighted contribution (replace NaN with 0)
-        contribution = df[r_col].fillna(0) * d_norm * np.abs(corr)
+        d_range = d_max - d_min
+        if d_range < 1e-10:  # Skip zero-variance demographics
+            continue
+        d_norm = (df[d_col] - d_min) / d_range
+        contribution = df[r_col] * d_norm * np.abs(corr)
         df['weighted_L'] += contribution.fillna(0)
 
 # Scale weighted_L to avoid dominance over baseline
-df['weighted_L'] = df['weighted_L'] * 0.5  # Adjust scaling factor as needed
+df['weighted_L'] = df['weighted_L'] * 0.5  # Tune this factor
 
-# 3. Combine baseline and weighted contributions
-# ----------------------------------------------
+# ======================================================================
+# Step 5: Combine Baseline and Weighted_L (Ensure L > 0 and No NaNs)
+# ======================================================================
 df['L'] = df['baseline_L'] + df['weighted_L']
+df['L'] = df['L'].fillna(df['baseline_L'])  # Fallback to baseline if NaN
+df['L'] = df['L'].replace(0, epsilon)  # Replace 0 with epsilon
 
-# 4. Ensure L is strictly positive (even if baseline_L is 0)
-# -----------------------------------------------------------
-# Set a floor value (e.g., 1) to avoid L = 0
-df['L'] = df['L'].clip(lower=1.0)  # Minimum L = 1
-
-# 5. Normalize L to a meaningful scale
-df['L_normalized'] = df['L'] / (df['totalPopulation'] + 1e-5) * 1000  # Avoid division by zero
-
+# View results
+print(df[['fips', 'totalPopulation', 'totalRestaurants', 'baseline_L', 'weighted_L', 'L']].head())
