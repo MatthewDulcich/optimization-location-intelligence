@@ -59,6 +59,7 @@ def revenue(demand,P,IR):
 def costs(x):
     '''
     SOMEONE FILL IN HERE!!!!!!!!!!!!!!!!!!!!!!!
+    
     '''
     return(x)
 
