@@ -17,8 +17,6 @@ from scipy.stats import pearsonr
 
 
 # 1. Calculate a baseline L using population and total restaurants (avoid 0)
-# ----------------------------------------------------------------------------
-# Avoid division by zero: add epsilon (1e-5) to totalPopulation and totalRestaurants
 df['baseline_L'] = (
     (df['totalPopulation'] + 1e-5) * 
     (df['totalRestaurants'] + 1e-5) / 
@@ -63,7 +61,6 @@ df['L'] = df['baseline_L'] + df['weighted_L']
 # Set a floor value (e.g., 1) to avoid L = 0
 df['L'] = df['L'].clip(lower=1.0)  # Minimum L = 1
 
-# 5. Normalize L to a meaningful scale (e.g., per 1,000 people)
-# -------------------------------------------------------------
+# 5. Normalize L to a meaningful scale
 df['L_normalized'] = df['L'] / (df['totalPopulation'] + 1e-5) * 1000  # Avoid division by zero
 
