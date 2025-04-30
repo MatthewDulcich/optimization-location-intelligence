@@ -105,6 +105,10 @@ def calculate_rent_estimation():
     # Calculate estimated annual rent for store size
     merged_df['Estimated_annual_rent'] = (merged_df['Commercial_rent_per_sqft_year'] * STORE_SIZE_SQFT).round(2)
 
+    # Map state abbreviations back to full names
+    abbrev_to_state = {v: k for k, v in state_to_abbrev.items()}
+    merged_df['State'] = merged_df['State'].map(abbrev_to_state)
+
     return merged_df
 
 if __name__ == "__main__":
