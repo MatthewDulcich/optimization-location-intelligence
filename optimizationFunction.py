@@ -39,9 +39,6 @@ def revenue(demand,P,IR):
 
 def costs(minwage, rent, loss, initialCosts, employees=15):
     '''
-<<<<<<< HEAD
-    SOMEONE FILL IN HERE!!!!!!!!!!!!!!!!!!!!!!!
-=======
     Calculates costs of restaurant.
     args:
         minwage: Minimum wage in county
@@ -51,7 +48,6 @@ def costs(minwage, rent, loss, initialCosts, employees=15):
         employees: Number of employees in restaurant (default is 15)
     returns:
         netCosts: Total costs of restaurant
->>>>>>> cost_function
     '''
 
     operatingCosts = minwage * employees + rent + loss
@@ -74,11 +70,7 @@ def profit(x, P, totalPop, IR, minwage, rent, loss, initialCosts):
     demand = demand(x,P,totalPop)
 
     rev = revenue(demand,P,IR)
-<<<<<<< HEAD
-    cost = costs(x, P)
-=======
     cost = costs(minwage, rent, loss, initialCosts, employees=15)
->>>>>>> cost_function
 
     return rev - cost
 
