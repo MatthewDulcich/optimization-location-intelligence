@@ -22,6 +22,7 @@ populations = populations[['State','County','2024']]
 populations.rename({'2024':'Population'},axis=1,inplace=True)
 rent = calculate_rent_estimation()
 rent = rent[['State','County','Estimated_annual_rent']]
+L_values = getLValues()
 
 data = populations.merge(income)
 data = data.merge(rent)

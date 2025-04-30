@@ -56,6 +56,11 @@ def getIncome(filepath='data/ACSST5Y2023.S1901-Data.csv'):
 
     return data
 
+def getLValues(filepath='data/data_with_L.csv'):
+    data = pd.read_csv(filepath)
+    columns = ['fips', 'totalPopulation', 'totalRestaurants', 'baseline_L', 'weighted_L', 'L']
+    return  data[columns]
+
 if __name__ == '__main__':
     print(getPopulation())
     print(getMinWage())
