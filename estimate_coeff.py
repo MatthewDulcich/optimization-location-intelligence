@@ -3,7 +3,7 @@ from scipy.stats import pearsonr
 import numpy as np
 
 # Load your DataFrame
-data = pd.read_csv("data.csv")
+data = pd.read_csv("data/restaurant_data.csv")
 
 # ======================================================================
 # Step 1: Preprocess Data (Handle Missing Values and Zero Variance)
@@ -111,3 +111,5 @@ df['L'] = df['L'].replace(0, epsilon)  # Replace 0 with epsilon
 
 # View results
 print(df[['fips', 'totalPopulation', 'totalRestaurants', 'baseline_L', 'weighted_L', 'L']].head())
+# Save the DataFrame with L values
+df.to_csv("data/data_with_L.csv", index=False)
