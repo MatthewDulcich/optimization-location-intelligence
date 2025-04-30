@@ -36,7 +36,7 @@ def revenue(demand,P,IR):
         revenue: Demand times Price
     '''
     return demand*P**IR
-
+# TODO: Integrate P into costs
 def costs(minwage, rent, loss, initialCosts, employees=15):
     '''
     Calculates costs of restaurant.
