@@ -2,6 +2,17 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 
+'''
+    Since there are many variables in the optimization function, 
+    we will use an order.
+    The order is as follows:
+    1. Variables: x, P
+    2. Integers: budget, N
+    3. Floats: risk
+    4. Dataframes: totalPop, IR, minwage, rent
+    5. Rest: demand, revenue, costs, loss
+'''
+
 NUMBER_OF_COUNTIES = 3141  # Number of counties
 
 # ######################################################
@@ -25,19 +36,19 @@ def profit(x, P, totalPop, IR, minwage, rent):
         profit: Profit of restaurant.
     '''
     demand_val = demand(x, P, totalPop)
-    rev = revenue(demand_val, P, IR)
-    cost = costs(minwage, rent, demand_val, P, IR)
+    rev = revenue(P, IR, demand_val)
+    cost = costs(P, IR, minwage, rent, demand_val)
     return rev - cost
 
 
-def revenue(demand, P, IR):
+def revenue(P, IR, demand):
     '''
     Calculates Revenue of Product.
 
     Args:
-        demand: The demand of a given product.
         P: Price of a given product.
         IR: Income ratio of county to maximum county income (0 to 1).
+        demand: The demand of a given product.
 
     Returns:
         revenue: Demand times Price.
@@ -45,14 +56,14 @@ def revenue(demand, P, IR):
     return P**IR * demand
 
 
-def log_revenue(log_demand, P, IR):
+def log_revenue(P, IR, log_demand):
     '''
     Calculates log of Revenue of Product (concave function).
 
     Args:
-        log_demand: Log of demand of a given product.
         P: Price of a given product.
         IR: Income ratio of county to maximum county income (0 to 1).
+        log_demand: Log of demand of a given product.
 
     Returns:
         log_revenue: Log of Revenue.
@@ -95,7 +106,7 @@ def log_demand(x, P, totalPop):
     return np.log(L) - a * P
 
 
-def costs(minwage, rent, demand, P, IR, employees=15):
+def costs(P, IR, minwage, rent, demand, employees=15):
     '''
     Calculates costs of restaurant.
 
@@ -110,24 +121,24 @@ def costs(minwage, rent, demand, P, IR, employees=15):
     Returns:
         netCosts: Total costs of restaurant.
     '''
-    loss_incurred = loss(demand, P, IR)
+    loss_incurred = loss(P, IR, demand)
     operating_costs = minwage * employees + rent + loss_incurred
     return operating_costs
 
 
-def loss(demand, P, IR):
+def loss(P, IR, demand):
     '''
     Calculates losses: 8.2% of revenue incurred by restaurant.
 
     Args:
-        demand: Demand of restaurant.
         P: Price of restaurant.
         IR: Income ratio of county to maximum county income (0 to 1).
+        demand: Demand of restaurant.
 
     Returns:
         loss: Losses incurred by restaurant.
     '''
-    return 0.082 * revenue(demand, P, IR)
+    return 0.082 * revenue(P, IR, demand)
 
 
 # ######################################################
@@ -174,8 +185,8 @@ def getConstraints(x, budget, N, risk, totalPop, IR, minwage, rent):
     x = x[:NUMBER_OF_COUNTIES]
     P = x[NUMBER_OF_COUNTIES:]
     demand_val = demand(x, P, totalPop)
-    cost = x.T @ costs(minwage=minwage, rent=rent, demand=demand_val, P=P, IR=IR)
-    rev = revenue(demand_val, P, IR)
+    cost = x.T @ costs(P=P, IR=IR, minwage=minwage, rent=rent, demand=demand_val)
+    rev = revenue(P, IR, demand_val)
     return [
         {'type': 'ineq', 'fun': lambda _: budget - cost},  # Budget >= x@costs
         {'type': 'ineq', 'fun': lambda _: N - sum(x)},  # N >= sum(x)
@@ -185,7 +196,7 @@ def getConstraints(x, budget, N, risk, totalPop, IR, minwage, rent):
     ]
 
 
-def optimize(totalPop, IR, budget, risk, N, minwage, rent):
+def optimize(budget, N, risk, totalPop, IR, minwage, rent):
     '''
     Optimizes the objective function given certain variables.
 
