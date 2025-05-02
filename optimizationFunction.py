@@ -1,7 +1,17 @@
 import numpy as np
+import pandas as pd
+from scipy.optimize import minimize
 
 
-def profit(x, P, totalPop, IR, minwage, rent, initialCosts):
+NUMBER_OF_COUNTIES = 3141 # Number of counties
+
+
+# ######################################################
+# Main functions
+# ######################################################
+
+
+def profit(x, P, totalPop, IR, minwage, rent):
     '''
     Calculates Profit = Revenue - Costs
 
@@ -12,14 +22,13 @@ def profit(x, P, totalPop, IR, minwage, rent, initialCosts):
         IR: Income Ratio relative to maximum county income
         minwage: Minimum wage in county
         rent: Rent of restaurant
-        initialCosts: Initial costs of opening restaurant
 
     returns:
         profit: Profit of restaurant
     '''
     demand_val = demand(x, P, totalPop)
     rev = revenue(demand_val, P, IR)
-    cost = costs(minwage, rent, demand_val, P, initialCosts)
+    cost = costs(minwage, rent, demand_val, P, IR)
     return rev - cost
 
 
@@ -89,7 +98,7 @@ def log_demand(x, P, totalPop):
     return np.log(L) - a * P
 
 
-def costs(minwage, rent, demand, P, initialCosts, employees=15):
+def costs(minwage, rent, demand, P, IR, employees=15):
     '''
     Calculates costs of restaurant.
 
@@ -98,16 +107,16 @@ def costs(minwage, rent, demand, P, initialCosts, employees=15):
         rent: Rent of restaurant
         demand: Demand of restaurant
         P: Price of restaurant
-IR: Income ratio of county to maximum county income. Between 0 and 1.
-        initialCosts: Initial costs of opening restaurant
+        IR: Income ratio of county to maximum county income. Between 0 and 1.
+        # initialCosts: Initial costs of opening restaurant
         employees: Number of employees in restaurant (default is 15)
     
     returns:
         netCosts: Total costs of restaurant
     '''
-    loss_incurred = loss(demand, P)
+    loss_incurred = loss(demand, P, IR)
     operating_costs = minwage * employees + rent + loss_incurred
-    return operating_costs + initialCosts
+    return operating_costs
 
 
 def loss(demand, P, IR):
@@ -120,70 +129,9 @@ def loss(demand, P, IR):
         P: Price of restaurant
 
     returns:
-        revenue(oss: Los, P, IR)
+        loss: Losses incurred by restaurant
     '''
     return 0.082 * revenue(demand, P, IR)
-
-
-# ######################################################
-# Inequality constraints >= 0
-# ######################################################
-
-
-def max_risk(cost, revenue, risk=0.8):
-    '''
-    Calculates maximum risk of restaurant.
-
-    args:
-        cost: Total costs of restaurant
-        revenue: Total revenue of restaurant
-        risk: Acceptable risk threshold (default is 0.8)
-
-    returns:
-        maxRisk: Maximum risk of restaurant
-    '''
-    return risk - cost / revenue
-
-
-def store_possibility(x):
-    '''
-    Calculates if store is possible.
-
-    args:
-        x: Total number of stores in given county
-
-    returns:
-        storePossibility: True if store is possible, False otherwise
-    '''
-    return x
-
-
-def max_budget(budget, cost):
-    '''
-    Calculates maximum budget of restaurant.
-
-    args:
-        budget: Total budget of restaurant
-        cost: Total costs of restaurant
-
-    returns:
-        maxBudget: Maximum budget of restaurant
-    '''
-    return budget - sum(cost)
-
-
-def max_stores(N, x):
-    '''
-    Calculates maximum number of stores in given county.
-
-    args:
-        N: Maximum number of stores to open
-        x: Total number of stores in given county
-
-    returns:
-        maxStores: Remaining number of stores that can be opened
-    '''
-    return N - sum(x)
 
 
 # ######################################################
@@ -191,23 +139,24 @@ def max_stores(N, x):
 # ######################################################
 
 
-def objectiveFunction(x, P, totalPop, IR):
+def objectiveFunction(x, totalPop, IR, minwage, rent):
     '''
     Objective function for optimization problem.
 
     args:
-        x: Total number of stores in given county
-        P: Price
+        x: Total number of stores + Price per store
         totalPop: Total population in county
         IR: Income Ratio relative to maximum county income
 
     returns:
         Objective value to minimize
     '''
-    return -x.T @ profit(x, P, totalPop, IR)
+    x = x[:NUMBER_OF_COUNTIES]
+    P = x[NUMBER_OF_COUNTIES:]
+    return -x.T @ profit(x, P, totalPop, IR, minwage, rent)
 
 
-def getConstraints(budget, N, risk, x, P, totalPop, IR):
+def getConstraints(x, budget, N, risk, totalPop, IR, minwage, rent):
     '''
     Creates constraints for optimization function given certain variables.
 
@@ -219,16 +168,52 @@ def getConstraints(budget, N, risk, x, P, totalPop, IR):
         P: Price
         totalPop: Total population in county
         IR: Income Ratio relative to maximum county income
+        minwage: Minimum wage in county
+        rent: Rent of restaurant
 
     Returns:
         constraints: List of constraints to use in optimization function.
     '''
+    x = x[:NUMBER_OF_COUNTIES]
+    P = x[NUMBER_OF_COUNTIES:]
     demand_val = demand(x, P, totalPop)
-    cost = costs(minwage=0, rent=0, demand=demand_val, P=P, initialCosts=0)  # Replace with actual values
+    cost = x.T @ costs(minwage=minwage, rent=rent, demand=demand_val, P=P, IR=IR) 
     rev = revenue(demand_val, P, IR)
     return [
-        {'type': 'ineq', 'fun': lambda _: budget - sum(cost)},  # Budget >= x@costs
+        {'type': 'ineq', 'fun': lambda _: budget - cost},  # Budget >= x@costs
         {'type': 'ineq', 'fun': lambda _: N - sum(x)},  # N >= sum(x)
         {'type': 'ineq', 'fun': lambda _: risk - cost / rev},  # risk > cost/revenue
-        {'type': 'ineq', 'fun': lambda _: x}  # All x >= 0
+        {'type': 'ineq', 'fun': lambda _: x},  # All x >= 0
+        {'type': 'ineq', 'fun': lambda _: P},  # All P >= 0
     ]
+
+
+def optimize(totalPop, IR, budget, risk, N, minwage, rent):
+    '''
+    Optimizes the objective function given certain variables.
+
+    Args:
+        x0: Initial guess for optimization
+        P: Price
+        totalPop: Total population in county
+        IR: Income Ratio relative to maximum county income
+        budget (int): Total budget for owning restaurants.
+        N (int): Maximum number of stores to open.
+        risk (float): Total acceptable risk ratio per location (cost/revenue)
+        minwage: Minimum wage in county
+        rent: Rent of restaurant
+        
+    Returns:
+        result: Result of optimization function.
+    '''
+    x0 = np.ones((NUMBER_OF_COUNTIES, 1))  # Initial guess for optimization
+    P = 18 * np.ones((NUMBER_OF_COUNTIES, 1))  # Initial guess for price
+    x0 = np.concatenate((x0, P), axis=0)  # Concatenate x and P  
+    constraints = getConstraints(x0, budget, N, risk, totalPop, IR, minwage, rent)
+    result = minimize(
+        fun = objectiveFunction, 
+        x0=x0, 
+        args=(totalPop, IR, minwage, rent), 
+        constraints=constraints
+    )
+    return result
