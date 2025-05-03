@@ -260,7 +260,8 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent):
         result: Result of optimization function.
     '''
 
-    x0 = np.ones(NUMBER_OF_COUNTIES)
+    x0 = np.zeros(NUMBER_OF_COUNTIES)
+    x0[:N] = 1
     P = 18 * np.ones(NUMBER_OF_COUNTIES)
     x0 = np.concatenate((x0,P))
 
@@ -276,6 +277,6 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent):
         args=(totalPop, IR, minwage, rent),
         constraints=constraints,
         bounds=bounds,
-        options = {'maxiter':200}
+        options = {'maxiter':500}
     )
     return result
