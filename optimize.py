@@ -30,9 +30,12 @@ data = populations.merge(income)
 data = data.merge(rent)
 data = data.merge(minwage)
 
-data = data.iloc[:100,:]
+data = data.iloc[200:300,:]
 #print(data)
 #exit()
+
+from datetime import datetime
+start = datetime.now()
 results = optimize(budget = budget,
                    N = N,
                    risk = risk,
@@ -42,8 +45,11 @@ results = optimize(budget = budget,
                    rent = data['Estimated_annual_rent'])
 
 print(results)
+print(datetime.now() - start)
 x = results.x
+profit = results.fun * 100000 # Function value times scale value
 data['Prices'] = x[100:]
 data['Nstores'] = x[:100]
 print(data[['Prices','Nstores']].describe())
 print(data['Nstores'].sum())
+print(data.loc[data['Nstores']>=1])

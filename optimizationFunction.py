@@ -54,7 +54,7 @@ def revenue(P, IR, demand):
     Returns:
         revenue: Demand times Price.
     '''
-    return P**IR * demand
+    return P**(IR**0.5) * demand
 
 
 def log_revenue(P, IR, log_demand):
@@ -86,7 +86,7 @@ def demand(x, P, totalPop):
     '''
     a = 0.003 * P
     # L: Maximum demand at unit price 1.0.
-    if x > 0:
+    if x >= 1:
         L = totalPop / x
     else:
         L = 0 # No demand with no stores
@@ -231,8 +231,8 @@ def getConstraints(x, budget, N, risk, totalPop, IR, minwage, rent):
     return [
         {'type': 'ineq', 'fun': lambda x: budget_constraint(x)}, # Budget >= total cost (make 1d scaler)
         {'type': 'eq', 'fun': lambda x: total_stores_constraint(x)}, # N >= sum(x)
-        #{'type': 'ineq', 'fun': lambda x: risk_constraint(x)}, # risk > cost/revenue
-        {'type': 'ineq', 'fun': lambda x: x}, # All x, P > 0
+        {'type': 'ineq', 'fun': lambda x: risk_constraint(x)}, # risk > cost/revenue
+        #{'type': 'ineq', 'fun': lambda x: x}, # All x, P > 0
     ]
     #return [
     #    {'type': 'ineq', 'fun': lambda _: budget - total_cost},  # Budget >= total cost (make 1d scaler)
@@ -259,17 +259,23 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent):
     Returns:
         result: Result of optimization function.
     '''
-    x0 = np.ones((NUMBER_OF_COUNTIES, 1))  # Initial guess for optimization
-    #x0 = np.zeros((NUMBER_OF_COUNTIES, 1))  # Initial guess for optimization
-    P = 18 * np.ones((NUMBER_OF_COUNTIES, 1))  # Initial guess for price
-    x0 = np.concatenate((x0, P), axis=0).squeeze()  # Concatenate x and P
+
+    x0 = np.ones(NUMBER_OF_COUNTIES)
+    P = 18 * np.ones(NUMBER_OF_COUNTIES)
+    x0 = np.concatenate((x0,P))
 
     constraints = getConstraints(x0, budget, N, risk, totalPop, IR, minwage, rent)
 
+    # Bounds for number of stores and price in each county. Must be positive. Price < 50
+    bounds = [(0,100) for i in range(NUMBER_OF_COUNTIES)] + \
+             [(0,50) for i in range(NUMBER_OF_COUNTIES)]
+
     result = minimize(
         fun=objectiveFunction,
-        x0=x0.squeeze(),
+        x0=x0,
         args=(totalPop, IR, minwage, rent),
-        constraints=constraints
+        constraints=constraints,
+        bounds=bounds,
+        options = {'maxiter':200}
     )
     return result
