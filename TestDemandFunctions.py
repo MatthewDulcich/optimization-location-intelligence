@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from readData import *
+from rent_estimation import calculate_rent_estimation
 
 def demand(L,P):
     '''
@@ -45,9 +46,11 @@ income = getIncome()
 populations = getPopulation()
 populations = populations[['State','County','2024']]
 populations.rename({'2024':'Population'},axis=1,inplace=True)
-
+rent = calculate_rent_estimation()
+rent = rent[['State','County','Estimated_annual_rent']]
 
 data = populations.merge(income)
+data = data.merge(rent)
 print(data['MeanIncomeRatio'].describe())
 data['MeanIncomeRatio'] = data['MeanIncomeRatio']**0.5
 print(data['MeanIncomeRatio'].describe())
