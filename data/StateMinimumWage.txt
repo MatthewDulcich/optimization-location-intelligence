@@ -1,56 +1,56 @@
 State, MinWage
-Alabama, 7.25
-Alaska, 11.91
-Arizona, 14.70
-Arkansas, 11.00
-California, 16.50
-Colorado, 14.81
-Connecticut, 16.35
-Delaware, 15.00
-District Of Columbia, 17.50
-Florida, 13.00
-Georgia, 7.25
-Guam, 9.25
-Hawaii, 14.00
-Idaho, 7.25
-Illinois, 15.00
-Indiana, 7.25
-Iowa, 7.25
-Kansas, 7.25
-Kentucky, 7.25
-Louisiana, 7.25
-Maine, 14.65
-Maryland, 15.00
-Massachusetts, 15.00
-Michigan, 12.48
-Minnesota, 11.13
-Mississippi, 7.25
-Missouri, 13.75
-Montana, 10.55
-Nebraska, 13.50
-Nevada, 12.00
-New Hampshire, 7.25
-New Jersey, 15.49
-New Mexico, 12.00
-New York, 15.50/16.50
-North Carolina, 7.25
-North Dakota, 7.25
-Northern Mariana Islands, 7.25
-Ohio, 10.70
-Oklahoma, 7.25
-Oregon, 14.70
-Pennsylvania, 7.25
-Puerto Rico, 10.50
-Rhode Island, 15.00
-South Carolina, 7.25
-South Dakota, 11.50
-Tennessee, 7.25
-Texas, 7.25
-Utah, 7.25
-Vermont, 14.01
-Virgin Islands, 10.50
-Virginia, 12.41
-Washington, 16.66
-West Virginia, 8.75
-Wisconsin, 7.25 
-Wyoming, 7.25
+Alabama,7.25
+Alaska,11.91
+Arizona,14.70
+Arkansas,11.00
+California,16.50
+Colorado,14.81
+Connecticut,16.35
+Delaware,15.00
+District Of Columbia,17.50
+Florida,13.00
+Georgia,7.25
+Guam,9.25
+Hawaii,14.00
+Idaho,7.25
+Illinois,15.00
+Indiana,7.25
+Iowa,7.25
+Kansas,7.25
+Kentucky,7.25
+Louisiana,7.25
+Maine,14.65
+Maryland,15.00
+Massachusetts,15.00
+Michigan,12.48
+Minnesota,11.13
+Mississippi,7.25
+Missouri,13.75
+Montana,10.55
+Nebraska,13.50
+Nevada,12.00
+New Hampshire,7.25
+New Jersey,15.49
+New Mexico,12.00
+New York,16.50
+North Carolina,7.25
+North Dakota,7.25
+Northern Mariana Islands,7.25
+Ohio,10.70
+Oklahoma,7.25
+Oregon,14.70
+Pennsylvania,7.25
+Puerto Rico,10.50
+Rhode Island,15.00
+South Carolina,7.25
+South Dakota,11.50
+Tennessee,7.25
+Texas,7.25
+Utah,7.25
+Vermont,14.01
+Virgin Islands,10.50
+Virginia,12.41
+Washington,16.66
+West Virginia,8.75
+Wisconsin,7.25 
+Wyoming,7.25
