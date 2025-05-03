@@ -54,18 +54,36 @@ geoData = geoData.merge(income,on='id')#left_on='GEO_ID',right_on='CountyID')
 
 # Make sure the "id" column is an integer
 geoData.id = geoData['id'].astype(int)
-
+print(geoData)
 # Remove Alaska, Hawaii and Puerto Rico.
 statesToRemove = ['02', '15', '72']
 geoData = geoData[~geoData.STATE.isin(statesToRemove)]
 
+ax = plt.axes(projection = gcrs.PlateCarree())
 # Basic plot with just county outlines
-gplt.choropleth(
+im = gplt.choropleth(
     geoData,
     hue = 'MeanIncome',
     #hue = 'Estimated_annual_rent',
     #hue = 'id',
     projection=gcrs.PlateCarree(),
-    extent=[-150,15,-40,60]
+    extent=[-150,15,-40,60],
+    cmap = 'viridis',
+    legend = False,
+    ax = ax
+    #legend_kwds={"orientation": "horizontal", "pad": 0.01}
 )
+
+from matplotlib.colors import TwoSlopeNorm, Normalize
+
+norm = Normalize(vmin=geoData['MeanIncome'].min(),
+                 vmax=geoData['MeanIncome'].max())
+
+cbar = plt.cm.ScalarMappable(norm=norm, cmap='viridis')
+plt.colorbar(cbar, ax=ax, pad = -0.25, shrink = 0.4)
+
+#plt.colorbar(im, ax = ax, cmap = 'viridis')
+#leg = ax.get_legend()
+#leg.set_bbox_to_anchor((0., 0., 0.2, 0.2))
+plt.title('Mean Income By County',y = .8, fontsize='small')
 plt.show()
