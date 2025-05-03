@@ -47,9 +47,10 @@ results = optimize(budget = budget,
 print(results)
 print(datetime.now() - start)
 x = results.x
-profit = results.fun * 100000 # Function value times scale value
+profit = results.fun * -100000 # Function value times scale value
 data['Prices'] = x[100:]
 data['Nstores'] = x[:100]
 print(data[['Prices','Nstores']].describe())
 print(data['Nstores'].sum())
 print(data.loc[data['Nstores']>=1])
+print(f"Profit {profit}")
