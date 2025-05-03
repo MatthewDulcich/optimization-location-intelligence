@@ -1,4 +1,4 @@
-State, MinWage
+State,MinWage
 Alabama,7.25
 Alaska,11.91
 Arizona,14.70
