@@ -3,8 +3,10 @@ import geopandas as gpd
 import geoplot.crs as gcrs
 import geoplot as gplt
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 from readData import *
 from rent_estimation import calculate_rent_estimation
+import numpy as np
 
 # Load the json file with county coordinates
 geoData = gpd.read_file(
@@ -17,9 +19,9 @@ populations = populations[['State','County','2024']]
 populations.rename({'2024':'Population'},axis=1,inplace=True)
 rent = calculate_rent_estimation()
 rent = rent[['State','County','Estimated_annual_rent']]
+minwage = getMinWage()
 
-data = populations.merge(income)
-data = data.merge(rent)
+
 
 geoData = geoData[~geoData.STATE.isin(['72'])]
 
@@ -45,7 +47,6 @@ income.loc[income['id'] == '09190', 'id'] = '09001' # Western Connecticut Planni
 print(income.loc[~income['id'].isin(geoData['id']),['id','State','County']])
 print(geoData.loc[~geoData['id'].isin(income['id']),['id','STATE','COUNTY','NAME']])
 
-geoData = geoData.merge(income,on='id')#left_on='GEO_ID',right_on='CountyID')
 
 #print(geoData)
 #print((geoData['GEO_ID'] == geoData['CountyID']).unique())
@@ -53,37 +54,46 @@ geoData = geoData.merge(income,on='id')#left_on='GEO_ID',right_on='CountyID')
 #exit()
 
 # Make sure the "id" column is an integer
-geoData.id = geoData['id'].astype(int)
-print(geoData)
+#geoData.id = geoData['id'].astype(int)
+#print(geoData)
 # Remove Alaska, Hawaii and Puerto Rico.
 statesToRemove = ['02', '15', '72']
 geoData = geoData[~geoData.STATE.isin(statesToRemove)]
 
-ax = plt.axes(projection = gcrs.PlateCarree())
-# Basic plot with just county outlines
-im = gplt.choropleth(
-    geoData,
-    hue = 'MeanIncome',
-    #hue = 'Estimated_annual_rent',
-    #hue = 'id',
-    projection=gcrs.PlateCarree(),
-    extent=[-150,15,-40,60],
-    cmap = 'viridis',
-    legend = False,
-    ax = ax
-    #legend_kwds={"orientation": "horizontal", "pad": 0.01}
-)
+data = geoData.merge(income,on='id')#left_on='GEO_ID',right_on='CountyID')
 
-from matplotlib.colors import TwoSlopeNorm, Normalize
+data = data.merge(populations)
+data = data.merge(rent)
+data = data.merge(minwage)
 
-norm = Normalize(vmin=geoData['MeanIncome'].min(),
-                 vmax=geoData['MeanIncome'].max())
+data.id = data['id'].astype(int)
+data.rename({'Estimated_annual_rent':'Rent'},axis=1,inplace=True)
+print(data)
 
-cbar = plt.cm.ScalarMappable(norm=norm, cmap='viridis')
-plt.colorbar(cbar, ax=ax, pad = -0.25, shrink = 0.4)
+data['Population'] = np.log(data['Population'])
+data['Rent'] = np.log(data['Rent'])
 
-#plt.colorbar(im, ax = ax, cmap = 'viridis')
-#leg = ax.get_legend()
-#leg.set_bbox_to_anchor((0., 0., 0.2, 0.2))
-plt.title('Mean Income By County',y = .8, fontsize='small')
-plt.show()
+varnames = ['Minimum Wage','Log Population','Mean Income','Log Rent']
+for i, var in enumerate(['MinWage','Population','MeanIncome','Rent']):
+    ax = plt.axes(projection = gcrs.PlateCarree())
+    # Basic plot with just county outlines
+    im = gplt.choropleth(
+        data,
+        hue = var,
+        #hue = 'Estimated_annual_rent',
+        #hue = 'id',
+        projection=gcrs.PlateCarree(),
+        extent=[-150,15,-40,60],
+        cmap = 'viridis',
+        ax = ax
+        #legend_kwds={"orientation": "horizontal", "pad": 0.01}
+    )
+
+    norm = Normalize(vmin=data[var].min(),
+                     vmax=data[var].max())
+
+    cbar = plt.cm.ScalarMappable(norm=norm, cmap='viridis')
+    plt.colorbar(cbar, ax=ax, pad = -0.25, shrink = 0.4)
+    plt.title(f'{varnames[i]} By County',y = .8, fontsize='small')
+    plt.savefig(f"Images/{var}.png",bbox_inches='tight',dpi=300)
+    plt.close()
