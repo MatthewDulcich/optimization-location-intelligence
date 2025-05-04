@@ -39,7 +39,7 @@ def profit(x, P, totalPop, IR, minwage, rent):
     demand_val = demand(x, P, totalPop)
     rev = revenue(P, IR, demand_val)
     cost = costs(P, IR, minwage, rent, demand_val)
-    return rev - cost
+    return rev - x * cost
 
 
 def revenue(P, IR, demand):
