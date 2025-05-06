@@ -8,23 +8,19 @@ This project optimizes the number of stores and pricing strategy for restaurants
 
 The **objective function** aims to **maximize profit** by minimizing the negative profit across all counties. The profit is calculated as:
 
-\[
-\text{Profit} = \text{Revenue} - \text{Costs}
-\]
+**Profit = Revenue - Costs**
 
 The **objective function** is defined as:
 
-\[
-\text{Objective Function} = -\frac{1}{100,000} \sum_{i=1}^{N} x[i] \cdot \text{Profit}(x[i], P[i], \text{totalPop}[i], \text{IR}[i], \text{minwage}[i], \text{rent}[i])
-\]
+**Objective Function** = `-(1 / 100,000) * sum(x[i] * Profit(x[i], P[i], totalPop[i], IR[i], minwage[i], rent[i]))`
 
 Where:
-- \( x[i] \): Number of stores in county \( i \).
-- \( P[i] \): Price per product in county \( i \).
-- \( \text{totalPop}[i] \): Total population in county \( i \).
-- \( \text{IR}[i] \): Income ratio of county \( i \) relative to the maximum county income.
-- \( \text{minwage}[i] \): Minimum wage in county \( i \).
-- \( \text{rent}[i] \): Rent of the restaurant in county \( i \).
+- `x[i]`: Number of stores in county `i`.
+- `P[i]`: Price per product in county `i`.
+- `totalPop[i]`: Total population in county `i`.
+- `IR[i]`: Income ratio of county `i` relative to the maximum county income.
+- `minwage[i]`: Minimum wage in county `i`.
+- `rent[i]`: Rent of the restaurant in county `i`.
 
 ---
 
@@ -34,43 +30,43 @@ The optimization problem is subject to the following constraints:
 
 ### 1. Budget Constraint
 The total cost of opening and operating stores must not exceed the budget:
-\[
-\text{Budget Constraint: } \text{budget} - \sum_{i=1}^{N} x[i] \cdot \text{Costs}(P[i], \text{IR}[i], \text{minwage}[i], \text{rent}[i], \text{demand}[i]) \geq 0
-\]
+
+**Budget Constraint**:  
+`budget - sum(x[i] * Costs(P[i], IR[i], minwage[i], rent[i], demand[i])) >= 0`
 
 Where:
-- \(\text{Costs}(P, \text{IR}, \text{minwage}, \text{rent}, \text{demand}) = \text{minwage} \cdot \text{employees} + \text{rent} + \text{loss}\)
-- \(\text{loss} = 0.082 \cdot \text{Revenue}(P, \text{IR}, \text{demand})\)
+- `Costs(P, IR, minwage, rent, demand) = minwage * employees + rent + loss`
+- `loss = 0.082 * Revenue(P, IR, demand)`
 
 ---
 
 ### 2. Total Stores Constraint
 The total number of stores opened across all counties must not exceed the maximum allowed:
-\[
-\text{Total Stores Constraint: } N - \sum_{i=1}^{N} x[i] = 0
-\]
+
+**Total Stores Constraint**:  
+`N - sum(x[i]) = 0`
 
 ---
 
 ### 3. Risk Constraint
 The risk ratio (cost/revenue) for each county must not exceed the acceptable risk threshold:
-\[
-\text{Risk Constraint: } \text{risk} - \frac{\text{Costs}(P[i], \text{IR}[i], \text{minwage}[i], \text{rent}[i], \text{demand}[i])}{\text{Revenue}(P[i], \text{IR}[i], \text{demand}[i])} \geq 0
-\]
 
-If revenue is zero (\( \text{Revenue} = 0 \)), the constraint defaults to \(-1\) to indicate infeasibility.
+**Risk Constraint**:  
+`risk - (Costs(P[i], IR[i], minwage[i], rent[i], demand[i]) / Revenue(P[i], IR[i], demand[i])) >= 0`
+
+If revenue is zero (`Revenue = 0`), the constraint defaults to `-1` to indicate infeasibility.
 
 ---
 
 ## Decision Variables
 
-1. **Number of Stores (\(x\))**:
-   - \(x[i]\): Number of stores in county \(i\).
-   - Bounds: \(0 \leq x[i] \leq 100\).
+1. **Number of Stores (`x`)**:
+   - `x[i]`: Number of stores in county `i`.
+   - Bounds: `0 <= x[i] <= 100`.
 
-2. **Price (\(P\))**:
-   - \(P[i]\): Price per product in county \(i\).
-   - Bounds: \(0 \leq P[i] \leq 50\).
+2. **Price (`P`)**:
+   - `P[i]`: Price per product in county `i`.
+   - Bounds: `0 <= P[i] <= 50`.
 
 ---
 
@@ -78,47 +74,38 @@ If revenue is zero (\( \text{Revenue} = 0 \)), the constraint defaults to \(-1\)
 
 ### 1. Demand Function
 The demand for a product in a county is calculated as:
-\[
-\text{Demand}(x, P, \text{totalPop}) = 
-\begin{cases} 
-\frac{\text{totalPop}}{x} \cdot e^{-0.003 \cdot P^2} & \text{if } x \geq 1 \text{ and } P \leq 50 \\
-0 & \text{otherwise}
-\end{cases}
-\]
+
+**Demand(x, P, totalPop)** =  
+`(totalPop / x) * exp(-0.003 * P^2)` if `x >= 1` and `P <= 50`, otherwise `0`.
 
 ---
 
 ### 2. Revenue Function
 The revenue for a product in a county is calculated as:
-\[
-\text{Revenue}(P, \text{IR}, \text{demand}) = P^{\sqrt{\text{IR}}} \cdot \text{demand}
-\]
+
+**Revenue(P, IR, demand)** =  
+`P^(sqrt(IR)) * demand`
 
 ---
 
 ### 3. Costs Function
 The costs for operating a restaurant in a county are calculated as:
-\[
-\text{Costs}(P, \text{IR}, \text{minwage}, \text{rent}, \text{demand}) = \text{minwage} \cdot \text{employees} + \text{rent} + \text{loss}
-\]
 
-Where:
-\[
-\text{loss} = 0.082 \cdot \text{Revenue}(P, \text{IR}, \text{demand})
-\]
+**Costs(P, IR, minwage, rent, demand)** =  
+`minwage * employees + rent + loss`
+
+Where:  
+`loss = 0.082 * Revenue(P, IR, demand)`
 
 ---
 
 ## Optimization Workflow
 
 ### 1. Initialization
-Start with an initial guess for \(x\) and \(P\):
-\[
-x_0 = [1, 1, \dots, 1] \quad (\text{for } N \text{ counties})
-\]
-\[
-P_0 = [18, 18, \dots, 18] \quad (\text{initial price per county})
-\]
+Start with an initial guess for `x` and `P`:
+
+- `x_0 = [1, 1, ..., 1]` (for `N` counties)
+- `P_0 = [18, 18, ..., 18]` (initial price per county)
 
 ---
 
@@ -128,7 +115,7 @@ Apply the budget, total stores, and risk constraints.
 ---
 
 ### 3. Bounds
-Ensure \(x\) and \(P\) remain within their respective bounds.
+Ensure `x` and `P` remain within their respective bounds.
 
 ---
 
