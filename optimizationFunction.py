@@ -21,7 +21,7 @@ NUMBER_OF_COUNTIES = 100  # Number of counties
 # ######################################################
 
 
-def profit(x, P, totalPop, IR, minwage, rent):
+def profit(x, P, totalPop, IR, minwage, rent, NRestaurants):
     '''
     Calculates Profit = Revenue - Costs.
 
@@ -36,7 +36,7 @@ def profit(x, P, totalPop, IR, minwage, rent):
     Returns:
         profit: Profit of restaurant.
     '''
-    demand_val = demand(x, P, totalPop)
+    demand_val = demand(x, P, totalPop, NRestaurants)
     rev = revenue(P, IR, demand_val)
     cost = costs(P, IR, minwage, rent, demand_val)
     return rev - cost
@@ -72,7 +72,7 @@ def log_revenue(P, IR, log_demand):
     return log_demand + IR * np.log(P)
 
 
-def demand(x, P, totalPop):
+def demand(x, P, totalPop, Nrestaurants):
     '''
     Calculates demand as a function of price.
 
@@ -85,13 +85,21 @@ def demand(x, P, totalPop):
         demand: Demand corresponding to input variables.
     '''
     a = 0.003 * P
-    # L: Maximum demand at unit price 1.0.
-    if x >= 1:
-        L = totalPop / x
-    else:
-        L = 0 # No demand with no stores
-    if P > 50:
-        L = 0
+
+    L = totalPop*(0.075*12) # Total yearly restaurant demant in county
+    #L = L*x/(25*x**2)
+    #L = L * -x/(0.0001*(Nrestaurants+x)**2) # Our share of total restuarant demand at unit price 1
+    #L = L * (Nrestaurants+x)*np.log(x+1) # Our share of total restuarant demand at unit price 1
+    #L = L * x/(Nrestaurants+x) * np.log(x+1)
+    #L = L * np.log(x+1)/10
+    #L = L - L * (1/Nrestaurants+x)*1000 * np.log((10*x+1))
+    #L = L - L * (1/Nrestaurants+x)*1000 * np.log((x+1))
+    #L = L - L * (1/Nrestaurants+x)*1000 * np.log(((5/totalPop**0.66)*x+1))
+    L = L - L * (1/Nrestaurants+x)*1000 * np.log(((1/totalPop)*10*x**2+1))
+    #L = L - L * (1/Nrestaurants+x)*1000 * np.log(((1/totalPop)*20*x**2+1))
+
+    #if L <= 0:
+    #    L = 0
 
     return L * np.exp(-a * P)
 
@@ -129,7 +137,8 @@ def costs(P, IR, minwage, rent, demand, employees=15):
         netCosts: Total costs of restaurant.
     '''
     loss_incurred = loss(P, IR, demand)
-    operating_costs = minwage * employees + rent + loss_incurred
+    # Assume full time employees for a year
+    operating_costs = minwage*(40*52)*8 * employees + rent + loss_incurred
     return operating_costs
 
 
@@ -153,7 +162,7 @@ def loss(P, IR, demand):
 # ######################################################
 
 
-def objectiveFunction(x, totalPop, IR, minwage, rent):
+def objectiveFunction(x, totalPop, IR, minwage, rent, NRestaurants):
     '''
     Objective function for optimization problem.
 
@@ -170,11 +179,11 @@ def objectiveFunction(x, totalPop, IR, minwage, rent):
     P = x[NUMBER_OF_COUNTIES:]
     x = x[:NUMBER_OF_COUNTIES]
     #return -x.T @ profit(x, P, totalPop, IR, minwage, rent)
-    total = -x.T @ [profit(x, P, Pop, IR, mw, r) for x,P,Pop,IR,mw,r in zip(x,P,totalPop,IR,minwage,rent)]
+    total = -x.T @ [profit(x, P, Pop, IR, mw, r, NR) for x,P,Pop,IR,mw,r,NR in zip(x,P,totalPop,IR,minwage,rent,NRestaurants)]
     return total / 100000
 
 
-def getConstraints(x, budget, N, risk, totalPop, IR, minwage, rent):
+def getConstraints(x, budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
     '''
     Creates constraints for optimization function given certain variables.
 
@@ -208,7 +217,7 @@ def getConstraints(x, budget, N, risk, totalPop, IR, minwage, rent):
         P = x[NUMBER_OF_COUNTIES:]
         x = x[:NUMBER_OF_COUNTIES]
 
-        demand_val = [demand(i,j,k) for i,j,k in zip(x, P, totalPop)]
+        demand_val = [demand(i,j,k,l) for i,j,k,l in zip(x, P, totalPop, NRestaurants)]
         cost = [costs(P, IR, mw, r, d) for P,IR,mw,r,d in zip(P,IR,minwage,rent,demand_val)]
         total_cost = x.T @ cost # Get total costs for budget constraint
 
@@ -222,7 +231,7 @@ def getConstraints(x, budget, N, risk, totalPop, IR, minwage, rent):
         P = x[NUMBER_OF_COUNTIES:]
         x = x[:NUMBER_OF_COUNTIES]
 
-        demand_val = [demand(i,j,k) for i,j,k in zip(x, P, totalPop)]
+        demand_val = [demand(i,j,k,l) for i,j,k,l in zip(x, P, totalPop, NRestaurants)]
         cost = [costs(P, IR, mw, r, d) for P,IR,mw,r,d in zip(P,IR,minwage,rent,demand_val)]
         rev = [revenue(P, IR, d) for P, IR, d in zip(P, IR, demand_val)] # Get revenue for risk constraint
 
@@ -243,7 +252,7 @@ def getConstraints(x, budget, N, risk, totalPop, IR, minwage, rent):
     #]
 
 
-def optimize(budget, N, risk, totalPop, IR, minwage, rent):
+def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
     '''
     Optimizes the objective function given certain variables.
 
@@ -265,16 +274,16 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent):
     P = 18 * np.ones(NUMBER_OF_COUNTIES)
     x0 = np.concatenate((x0,P))
 
-    constraints = getConstraints(x0, budget, N, risk, totalPop, IR, minwage, rent)
+    constraints = getConstraints(x0, budget, N, risk, totalPop, IR, minwage, rent, NRestaurants)
 
     # Bounds for number of stores and price in each county. Must be positive. Price < 50
     bounds = [(0,100) for i in range(NUMBER_OF_COUNTIES)] + \
-             [(0,50) for i in range(NUMBER_OF_COUNTIES)]
+             [(0,30) for i in range(NUMBER_OF_COUNTIES)]
 
     result = minimize(
         fun=objectiveFunction,
         x0=x0,
-        args=(totalPop, IR, minwage, rent),
+        args=(totalPop, IR, minwage, rent, NRestaurants),
         constraints=constraints,
         bounds=bounds,
         options = {'maxiter':500}

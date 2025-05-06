@@ -25,10 +25,20 @@ populations.rename({'2024':'Population'},axis=1,inplace=True)
 rent = calculate_rent_estimation()
 rent = rent[['State','County','Estimated_annual_rent']]
 minwage = getMinWage()
+restaurant = pd.read_csv("data/restaurant_data.csv")
+print(restaurant[['fips','totalRestaurants']])
+
 
 data = populations.merge(income)
 data = data.merge(rent)
 data = data.merge(minwage)
+data['id'] = data['CountyID'].apply(lambda x: int(x[-5:]))
+
+data = data.merge(restaurant[['fips','totalRestaurants']],left_on='id',right_on='fips')
+print(data)
+print("Number counties with no restuarant data",data.loc[data['totalRestaurants']==0].shape[0])
+
+data.loc[data['totalRestaurants']==0,'totalRestaurants'] = data['totalRestaurants'].mean()
 
 data = data.iloc[200:300,:]
 #print(data)
@@ -42,7 +52,8 @@ results = optimize(budget = budget,
                    totalPop = data['Population'],
                    IR = data['MeanIncomeRatio'],
                    minwage = data['MinWage'],
-                   rent = data['Estimated_annual_rent'])
+                   rent = data['Estimated_annual_rent'],
+                   NRestaurants = data['totalRestaurants'])
 
 print(results)
 print(datetime.now() - start)
