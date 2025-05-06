@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize
+from gradient_descent import gd_minimize
 
 '''
     Since there are many variables in the optimization function,
@@ -36,9 +36,20 @@ def profit(x, P, totalPop, IR, minwage, rent):
     Returns:
         profit: Profit of restaurant.
     '''
+    # Use numpy arrays for better memory efficiency
+    x = np.asarray(x)
+    P = np.asarray(P)
+    totalPop = np.asarray(totalPop)
+    IR = np.asarray(IR)
+    minwage = np.asarray(minwage)
+    rent = np.asarray(rent)
+    
     demand_val = demand(x, P, totalPop)
     rev = revenue(P, IR, demand_val)
     cost = costs(P, IR, minwage, rent, demand_val)
+    
+    # Clean up intermediate arrays
+    del demand_val
     return rev - cost
 
 
@@ -84,6 +95,7 @@ def demand(x, P, totalPop):
     Returns:
         demand: Demand corresponding to input variables.
     '''
+    print(f"x: {x:<20} P: {P:<20} totalPop: {totalPop:<10}")  # Debugging
     a = 0.003 * P
     # L: Maximum demand at unit price 1.0.
     if x >= 1:
@@ -167,10 +179,20 @@ def objectiveFunction(x, totalPop, IR, minwage, rent):
     Returns:
         Objective value to minimize.
     '''
+    # Split x into stores and prices
     P = x[NUMBER_OF_COUNTIES:]
     x = x[:NUMBER_OF_COUNTIES]
-    #return -x.T @ profit(x, P, totalPop, IR, minwage, rent)
-    total = -x.T @ [profit(x, P, Pop, IR, mw, r) for x,P,Pop,IR,mw,r in zip(x,P,totalPop,IR,minwage,rent)]
+    
+    # Convert pandas Series to numpy arrays to ensure consistent indexing
+    totalPop = np.asarray(totalPop)
+    IR = np.asarray(IR)
+    minwage = np.asarray(minwage)
+    rent = np.asarray(rent)
+    
+    # Use numpy arrays for better memory efficiency
+    total = -sum(x[i] * profit(x[i], P[i], totalPop[i], IR[i], minwage[i], rent[i]) 
+                for i in range(len(x)))
+    
     return total / 100000
 
 
@@ -191,56 +213,46 @@ def getConstraints(x, budget, N, risk, totalPop, IR, minwage, rent):
     Returns:
         constraints: List of constraints to use in optimization function.
     '''
-    #P = x[NUMBER_OF_COUNTIES:].squeeze() # second half of input variables
-    #x = x[:NUMBER_OF_COUNTIES].squeeze() # first half of input variables
-
-    #demand_val = demand(x, P, totalPop)
-    #cost = x.T @ costs(P=P, IR=IR, minwage=minwage, rent=rent, demand=demand_val)
-    #rev = revenue(P, IR, demand_val)
-
-    #demand_val = [demand(i,j,k) for i,j,k in zip(x, P, totalPop)]
-    #cost = [costs(P, IR, mw, r, d) for P,IR,mw,r,d in zip(P,IR,minwage,rent,demand_val)]
-    #total_cost = x.T @ cost # Get total costs for budget constraint
-    #rev = [revenue(P, IR, d) for P, IR, d in zip(P, IR, demand_val)] # Get revenue for risk constraint
-    #risk_constraint = [(risk - c/r) for c, r in zip(cost,rev)] # Risk - cost / revenue > 0
-
+    # Convert pandas Series to numpy arrays
+    totalPop = np.asarray(totalPop)
+    IR = np.asarray(IR)
+    minwage = np.asarray(minwage)
+    rent = np.asarray(rent)
+    
     def budget_constraint(x):
         P = x[NUMBER_OF_COUNTIES:]
         x = x[:NUMBER_OF_COUNTIES]
-
-        demand_val = [demand(i,j,k) for i,j,k in zip(x, P, totalPop)]
-        cost = [costs(P, IR, mw, r, d) for P,IR,mw,r,d in zip(P,IR,minwage,rent,demand_val)]
-        total_cost = x.T @ cost # Get total costs for budget constraint
-
+        
+        # Use generator expression for memory efficiency
+        demand_val = (demand(i,j,k) for i,j,k in zip(x, P, totalPop))
+        cost = (costs(p, ir, mw, r, d) 
+                for p,ir,mw,r,d in zip(P,IR,minwage,rent,demand_val))
+        total_cost = sum(x[i] * c for i,c in enumerate(cost))
+        
         return budget - total_cost
 
     def total_stores_constraint(x):
-        x = x[:NUMBER_OF_COUNTIES]
-        return N - sum(x)
+        return N - sum(x[:NUMBER_OF_COUNTIES])
 
     def risk_constraint(x):
         P = x[NUMBER_OF_COUNTIES:]
         x = x[:NUMBER_OF_COUNTIES]
-
-        demand_val = [demand(i,j,k) for i,j,k in zip(x, P, totalPop)]
-        cost = [costs(P, IR, mw, r, d) for P,IR,mw,r,d in zip(P,IR,minwage,rent,demand_val)]
-        rev = [revenue(P, IR, d) for P, IR, d in zip(P, IR, demand_val)] # Get revenue for risk constraint
-
-        return [(risk - c/r) if r != 0 else -1 for c, r in zip(cost,rev)]
+        
+        # Use generator expressions
+        demand_val = (demand(i,j,k) for i,j,k in zip(x, P, totalPop))
+        cost = (costs(p, ir, mw, r, d) 
+                for p,ir,mw,r,d in zip(P,IR,minwage,rent,demand_val))
+        rev = (revenue(p, ir, d) 
+               for p, ir, d in zip(P, IR, demand_val))
+        
+        return [(risk - c/r) if r != 0 else -1 
+                for c, r in zip(cost, rev)]
 
     return [
-        {'type': 'ineq', 'fun': lambda x: budget_constraint(x)}, # Budget >= total cost (make 1d scaler)
-        {'type': 'eq', 'fun': lambda x: total_stores_constraint(x)}, # N >= sum(x)
-        {'type': 'ineq', 'fun': lambda x: risk_constraint(x)}, # risk > cost/revenue
-        #{'type': 'ineq', 'fun': lambda x: x}, # All x, P > 0
+        {'type': 'ineq', 'fun': lambda x: budget_constraint(x)},
+        {'type': 'eq', 'fun': lambda x: total_stores_constraint(x)},
+        {'type': 'ineq', 'fun': lambda x: risk_constraint(x)},
     ]
-    #return [
-    #    {'type': 'ineq', 'fun': lambda _: budget - total_cost},  # Budget >= total cost (make 1d scaler)
-    #    {'type': 'ineq', 'fun': lambda _: N - sum(x)},  # N >= sum(x)
-    #    {'type': 'ineq', 'fun': lambda _: risk_constraint},  # risk > cost/revenue
-    #    {'type': 'ineq', 'fun': lambda _: x},  # All x >= 0
-    #    {'type': 'ineq', 'fun': lambda _: P},  # All P >= 0
-    #]
 
 
 def optimize(budget, N, risk, totalPop, IR, minwage, rent):
@@ -271,12 +283,12 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent):
     bounds = [(0,100) for i in range(NUMBER_OF_COUNTIES)] + \
              [(0,50) for i in range(NUMBER_OF_COUNTIES)]
 
-    result = minimize(
+    result = gd_minimize(
         fun=objectiveFunction,
         x0=x0,
         args=(totalPop, IR, minwage, rent),
         constraints=constraints,
         bounds=bounds,
-        options = {'maxiter':500}
+        options = {'maxiter':1000, 'disp': True} # Display optimization process
     )
     return result
