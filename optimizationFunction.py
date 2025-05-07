@@ -98,8 +98,8 @@ def demand(x, P, totalPop, Nrestaurants):
     L = L - L * (1/Nrestaurants+x)*1000 * np.log(((1/totalPop)*10*x**2+1))
     #L = L - L * (1/Nrestaurants+x)*1000 * np.log(((1/totalPop)*20*x**2+1))
 
-    #if L <= 0:
-    #    L = 0
+    if L <= 0:
+        L = 0
 
     return L * np.exp(-a * P)
 
