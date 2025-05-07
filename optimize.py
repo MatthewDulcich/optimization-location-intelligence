@@ -1,6 +1,7 @@
 import argparse
 from readData import *
 from optimizationFunction import *
+from rent_estimation import calculate_rent_estimation
 
 # Use argparse for different constraints
 parser = argparse.ArgumentParser()
