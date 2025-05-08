@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
+from tqdm import tqdm
 
 '''
     Since there are many variables in the optimization function,
@@ -13,7 +14,7 @@ from scipy.optimize import minimize
     5. Rest: demand, revenue, costs, loss
 '''
 
-#NUMBER_OF_COUNTIES = 3143  # Number of counties
+# NUMBER_OF_COUNTIES = 3143  # Number of counties
 NUMBER_OF_COUNTIES = 100  # Number of counties
 
 # ######################################################
@@ -263,20 +264,33 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent):
     x0 = np.zeros(NUMBER_OF_COUNTIES)
     x0[:N] = 1
     P = 18 * np.ones(NUMBER_OF_COUNTIES)
-    x0 = np.concatenate((x0,P))
+    x0 = np.concatenate((x0, P))
 
     constraints = getConstraints(x0, budget, N, risk, totalPop, IR, minwage, rent)
 
     # Bounds for number of stores and price in each county. Must be positive. Price < 50
-    bounds = [(0,100) for i in range(NUMBER_OF_COUNTIES)] + \
-             [(0,50) for i in range(NUMBER_OF_COUNTIES)]
+    bounds = [(0, 100) for i in range(NUMBER_OF_COUNTIES)] + \
+             [(0, 50) for i in range(NUMBER_OF_COUNTIES)]
 
+    # Initialize tqdm progress bar
+    progress_bar = tqdm(total=500, desc="Optimization Progress", unit="iteration")
+
+    # Define a callback function to update tqdm
+    def callback(xk):
+        progress_bar.update(1)
+
+    # Run the optimization
     result = minimize(
         fun=objectiveFunction,
         x0=x0,
         args=(totalPop, IR, minwage, rent),
         constraints=constraints,
         bounds=bounds,
-        options = {'maxiter':500}
+        options={'maxiter': 500},
+        callback=callback  # Pass the callback function
     )
+
+    # Close the progress bar
+    progress_bar.close()
+
     return result
