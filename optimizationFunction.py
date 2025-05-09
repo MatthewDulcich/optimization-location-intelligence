@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from tqdm import tqdm
+import tensorflow as tf
+from pulp import LpProblem, LpMaximize, LpVariable, lpSum, LpAffineExpression
 
 '''
     Since there are many variables in the optimization function,
@@ -286,7 +288,7 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent):
         args=(totalPop, IR, minwage, rent),
         constraints=constraints,
         bounds=bounds,
-        options={'maxiter': 8},
+        options={'maxiter': 500},
         callback=callback  # Pass the callback function
     )
 
@@ -294,3 +296,152 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent):
     progress_bar.close()
 
     return result
+
+
+def objective_function_tf(x, totalPop, IR, minwage, rent):
+    '''
+    Objective function for optimization problem using TensorFlow.
+
+    Args:
+        x: Tensor containing decision variables (number of stores and prices).
+        totalPop: Tensor of total population in each county.
+        IR: Tensor of income ratios for each county.
+        minwage: Tensor of minimum wages in each county.
+        rent: Tensor of rent costs in each county.
+
+    Returns:
+        Objective value to minimize (negative profit).
+    '''
+    NUMBER_OF_COUNTIES = totalPop.shape[0]
+    P = x[NUMBER_OF_COUNTIES:]  # Prices
+    x = x[:NUMBER_OF_COUNTIES]  # Number of stores
+
+    # Calculate demand
+    demand_val = tf.exp(-0.003 * P) * (totalPop / (x + 1e-6))
+
+    # Debug: Check for invalid values in demand
+    tf.debugging.assert_all_finite(demand_val, "Demand contains NaN or Inf")
+
+    # Calculate revenue and costs
+    revenue_val = P * demand_val * tf.sqrt(IR)
+    cost_val = minwage * 15 + rent + 0.082 * revenue_val
+    profit = revenue_val - cost_val
+
+    # Debug: Check for invalid values in profit
+    tf.debugging.assert_all_finite(profit, "Profit contains NaN or Inf")
+
+    # Return negative profit (since we want to maximize profit)
+    return -tf.reduce_sum(profit)
+
+
+def optimize_tf(budget, N, risk, totalPop, IR, minwage, rent):
+    NUMBER_OF_COUNTIES = totalPop.shape[0]
+
+    # Initialize decision variables (number of stores and prices)
+    x0 = tf.Variable(tf.concat([
+        tf.ones(NUMBER_OF_COUNTIES),  # Start with 1 store per county
+        tf.ones(NUMBER_OF_COUNTIES) * 20  # Start with a price of $20
+    ], axis=0), dtype=tf.float32)
+
+    # Define the optimizer
+    optimizer = tf.optimizers.Adam(learning_rate=0.001)  # Smaller learning rate
+
+    # Optimization loop
+    for step in range(500):  # Number of iterations
+        with tf.GradientTape() as tape:
+            loss = objective_function_tf(x0, totalPop, IR, minwage, rent)
+
+        # Check for NaN in loss
+        if tf.math.is_nan(loss):
+            print(f"Loss became NaN at step {step}. Stopping optimization.")
+            break
+
+        # Compute gradients and apply them
+        grads = tape.gradient(loss, [x0])
+        optimizer.apply_gradients(zip(grads, [x0]))
+
+        # Enforce non-negativity and a small lower bound
+        x0.assign(tf.maximum(x0, 1e-3))
+
+        # Print progress every 50 steps
+        if step % 50 == 0:
+            print(f"Step {step}, Loss: {loss.numpy()}")
+
+    # Extract optimized values
+    optimized_x = x0.numpy()
+    optimized_profit = -objective_function_tf(x0, totalPop, IR, minwage, rent).numpy()
+
+    return optimized_x, optimized_profit
+
+
+def optimize_integer(budget, N, risk, totalPop, IR, minwage, rent):
+    '''
+    Optimizes the objective function using integer programming.
+
+    Args:
+        budget: Total budget for owning restaurants.
+        N: Maximum number of stores to open.
+        risk: Total acceptable risk ratio per location (cost/revenue).
+        totalPop: Total population in each county.
+        IR: Income Ratio relative to maximum county income.
+        minwage: Minimum wage in each county.
+        rent: Rent of restaurant in each county.
+
+    Returns:
+        result: Optimized decision variables and profit.
+    '''
+    NUMBER_OF_COUNTIES = len(totalPop)
+
+    # Create the optimization problem
+    prob = LpProblem("Restaurant_Optimization", LpMaximize)
+
+    # Define decision variables
+    x = [LpVariable(f"x_{i}", lowBound=1, upBound=100, cat="Integer") for i in range(NUMBER_OF_COUNTIES)]
+    P = [LpVariable(f"P_{i}", lowBound=0, upBound=50) for i in range(NUMBER_OF_COUNTIES)]
+    demand = [LpVariable(f"demand_{i}", lowBound=0) for i in range(NUMBER_OF_COUNTIES)]  # Demand variable
+    revenue = [LpVariable(f"revenue_{i}", lowBound=0) for i in range(NUMBER_OF_COUNTIES)]  # Revenue variable
+
+    # Objective function: Maximize profit
+    profit_terms = []
+    for i in range(NUMBER_OF_COUNTIES):
+        cost = minwage[i] * 15 + rent[i] + 0.082 * revenue[i]
+        profit_terms.append(revenue[i] - cost)
+
+    prob += lpSum(profit_terms), "Total_Profit"
+
+    # Constraints for demand
+    for i in range(NUMBER_OF_COUNTIES):
+        prob += demand[i] <= totalPop[i] / 1.0, f"MaxDemandConstraint_{i}"  # Ensure demand does not exceed population
+
+    # Constraints for revenue (linearize P[i] * demand[i])
+    for i in range(NUMBER_OF_COUNTIES):
+        prob += revenue[i] <= P[i] * totalPop[i], f"RevenueUpperBound_{i}"
+        prob += revenue[i] <= demand[i] * 50, f"RevenueDemandBound_{i}"
+
+    # Budget constraint
+    cost_terms = [
+        minwage[i] * 15 + rent[i] + 0.082 * revenue[i]
+        for i in range(NUMBER_OF_COUNTIES)
+    ]
+    prob += lpSum(cost_terms) <= budget, "BudgetConstraint"
+
+    # Total stores constraint
+    prob += lpSum(x) <= N, "TotalStoresConstraint"
+
+    # Risk constraint
+    for i in range(NUMBER_OF_COUNTIES):
+        prob += revenue[i] >= minwage[i] * 15 + rent[i] + 0.082 * revenue[i], f"RiskConstraint_{i}"
+
+    # Solve the problem
+    prob.solve()
+
+    # Extract results
+    x_values = [var.value() for var in x]
+    P_values = [var.value() for var in P]
+    total_profit = prob.objective.value()
+
+    return {
+        "x": x_values,
+        "P": P_values,
+        "profit": total_profit
+    }
