@@ -16,8 +16,8 @@ from pulp import LpProblem, LpMaximize, LpVariable, lpSum, LpAffineExpression
     5. Rest: demand, revenue, costs, loss
 '''
 
-# NUMBER_OF_COUNTIES = 3143  # Number of counties
-NUMBER_OF_COUNTIES = 100  # Number of counties
+NUMBER_OF_COUNTIES = 3143  # Number of counties
+# NUMBER_OF_COUNTIES = 100  # Number of counties
 
 # ######################################################
 # Main functions
