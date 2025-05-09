@@ -97,8 +97,17 @@ result_df['Profit'] = result_df['Profit'].fillna(0)
 geoData = gpd.read_file(
     'https://raw.githubusercontent.com/holtzy/The-Python-Graph-Gallery/master/static/data/US-counties.geojson'
 )
+
+# Ensure the "id" column is an integer
 geoData['id'] = geoData['id'].astype(int)
 result_df['id'] = result_df['id'].astype(int)
+
+# Remove Alaska, Hawaii, and Puerto Rico using their state names
+statesToRemove = ['Alaska', 'Hawaii', 'Puerto Rico']
+geoData = geoData[~geoData['STATE'].isin(statesToRemove)]
+result_df = result_df[~result_df['State'].isin(statesToRemove)]
+
+# Merge geoData with result_df
 result_df = geoData.merge(result_df, on='id')
 
 # Plot Units Sold by County
