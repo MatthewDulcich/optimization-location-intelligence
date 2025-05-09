@@ -156,8 +156,13 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
 
     # Demand limit: if county i is served, x[i] <= demand[i]; if not served (z[i] = 0), x[i] = 0
     for i in range(n_counties):
-        max_demand = totalPop[i] * 0.25 * 12  # Example demand cap
+        max_demand = totalPop[i] * 0.05  # Allow only 5% of the population as demand
         constraints.append(x[i] <= max_demand * z[i])  # Big-M constraint linking x and z
+
+        # Limit the number of restaurants per county
+        max_restaurants_per_county = 10  # Example: Limit to 10 restaurants per county
+        constraints.append(x[i] <= max_restaurants_per_county)
+        constraints.append(x[i] <= max_restaurants_per_county * z[i])  # Big-M constraint
 
     # Budget constraint: total cost (variable + fixed) cannot exceed budget
     variable_cost = cp.multiply(minwage, x) + rent
@@ -165,18 +170,18 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
     total_cost = cp.sum(variable_cost) + cp.sum(fixed_cost)
     constraints.append(total_cost <= budget)
 
-    # Limit the number of stores
-    constraints.append(cp.sum(z) <= N)
+    # Limit the total number of restaurants
+    constraints.append(cp.sum(x) <= N)
 
     # Objective: maximize total profit
     profit_terms = []
     for i in range(n_counties):
         a_i = totalPop[i] * 0.25 * 12  # Example demand intercept
-        b_i = 0.003  # Example price sensitivity
+        b_i = 0.003  # Example price sensitivity (higher value means more sensitive to price)
         # Concave revenue term: (a_i / b_i) * x[i] - (1 / b_i) * cp.square(x[i])
         revenue_i = (a_i / b_i) * x[i] - (1 / b_i) * cp.square(x[i])
-        # Subtract costs: variable_cost[i] + fixed_cost[i]
-        profit_i = revenue_i - variable_cost[i] - fixed_cost[i]
+        # Subtract costs: variable_cost[i] + fixed_cost[i] + penalty for each restaurant
+        profit_i = revenue_i - (variable_cost[i] + fixed_cost[i] + 1000 * x[i])
         profit_terms.append(profit_i)
 
     # Maximize total profit

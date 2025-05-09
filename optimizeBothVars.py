@@ -93,6 +93,9 @@ for i in range(int(data.shape[0] / 100) + 1):
 result_df['UnitsSold'] = result_df['UnitsSold'].fillna(0)
 result_df['Profit'] = result_df['Profit'].fillna(0)
 
+# Cap the maximum value of totalRestaurants to 10,000
+result_df['totalRestaurants'] = result_df['totalRestaurants'].clip(upper=100)
+
 # Graphing results
 geoData = gpd.read_file(
     'https://raw.githubusercontent.com/holtzy/The-Python-Graph-Gallery/master/static/data/US-counties.geojson'
@@ -146,7 +149,7 @@ plt.close()
 
 # Plot Total Restaurants by County
 ax = plt.axes(projection=gcrs.PlateCarree())
-norm = Normalize(vmin=result_df['totalRestaurants'].min(), vmax=result_df['totalRestaurants'].max())
+norm = Normalize(vmin=0, vmax=100)  # Set color bar range from 0 to 300
 im = gplt.choropleth(
     result_df,
     hue='totalRestaurants',
