@@ -54,3 +54,4 @@ print(data[['Prices','Nstores']].describe())
 print(data['Nstores'].sum())
 print(data.loc[data['Nstores']>=1])
 print(f"Profit {profit}")
+# Comment
