@@ -66,7 +66,7 @@ data.loc[data['HistoricRestaurants'] == 0, 'HistoricRestaurants'] = data['Histor
 data.loc[np.isnan(data['HistoricRestaurants']), 'HistoricRestaurants'] = data['HistoricRestaurants'].mean()
 
 # Limit data to the first 100 rows for testing
-data = data.head(20)
+# data = data.head(20)
 
 # Run optimization on the full dataset
 results = optimize(

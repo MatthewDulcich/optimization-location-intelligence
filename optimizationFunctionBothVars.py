@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
-import cvxpy as cp
+from pyscipopt import Model, quicksum
+from pyscipopt import Expr
 
 '''
     Since there are many variables in the optimization function,
@@ -113,10 +114,12 @@ def loss(P, IR, demand):
 
 
 # ######################################################
-# CVXPY Optimization
+# SCIP Optimization
 # ######################################################
 
 def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
+    print("Starting optimization process...")
+
     # Convert all inputs to NumPy arrays to ensure compatibility
     totalPop = np.array(totalPop)
     IR = np.array(IR)
@@ -126,78 +129,105 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
 
     # Number of counties
     n_counties = len(totalPop)
+    print(f"Number of counties: {n_counties}")
+
+    # Create a SCIP model
+    model = Model("Restaurant Optimization")
+
+    # Enable verbose output
+    model.setIntParam("display/verblevel", 5)
+    model.redirectOutput()  # Redirect SCIP output to the console
 
     # Define variables
-    x = cp.Variable(n_counties, integer=True)  # Units sold in each county (integer)
-    z = cp.Variable(n_counties, boolean=True)  # Binary indicator for serving each county
+    x = {}  # Integer variables for units sold in each county
+    P = {}  # Continuous variables for price in each county
+    z = {}  # Binary variables for whether a county is served
 
-    # Constraints
-    constraints = []
+    for i in range(n_counties):
+        x[i] = model.addVar(vtype="I", name=f"x_{i}", lb=0)  # Integer variable
+        P[i] = model.addVar(vtype="C", name=f"P_{i}", lb=0, ub=100)  # Continuous variable with upper bound
+        z[i] = model.addVar(vtype="B", name=f"z_{i}")        # Binary variable
 
-    # Nonnegativity constraint for x
-    constraints.append(x >= 0)
+    print("Variables defined.")
 
-    # Demand limit: if county i is served, x[i] <= demand[i]; if not served (z[i] = 0), x[i] = 0
-    max_demand = totalPop * 0.1  # Allow 10% of the population as demand
-    constraints.append(x <= cp.multiply(max_demand, z))
+    # Add constraints
+    print("Adding constraints...")
+    total_cost_expr = 0  # Initialize total cost expression
+    for i in range(n_counties):
+        # Define linear revenue approximation for constraints
+        L = totalPop[i] * 0.25 * 12
+        revenue_expr = 0.9 * L * P[i]
+        loss_expr = 0.082 * revenue_expr
 
-    # Limit the number of restaurants per county
-    max_restaurants_per_county = 20  # Increase the limit
-    constraints.append(x <= cp.multiply(max_restaurants_per_county, z))  # Use cp.multiply
+        # Define cost expression for constraints using linear approximation
+        operating_costs_expr = minwage[i] * (40 * 52) * 15 + rent[i] + loss_expr
 
-    # Budget constraint: total cost (variable + fixed) cannot exceed budget
-    variable_cost = cp.multiply(minwage, x) + rent
-    fixed_cost = cp.multiply(NRestaurants, z)
-    total_cost = cp.sum(variable_cost) + cp.sum(fixed_cost)
-    constraints.append(total_cost <= budget)
+        # Accumulate total cost
+        total_cost_expr += operating_costs_expr
 
-    # Objective: maximize total profit
-    a = totalPop * 0.25 * 365  # Vectorized demand intercept
-    b = 0.003  # Price sensitivity
-    revenue = cp.multiply(a / b, x) - cp.multiply(1 / b, cp.square(x))  # Vectorized revenue
-    profit = revenue - (variable_cost + fixed_cost + cp.multiply(1000, x))  # Vectorized profit
-    objective = cp.Maximize(cp.sum(profit))
+        # Population-based cap
+        model.addCons(x[i] <= totalPop[i] * 0.1)
 
-    # Define the problem
-    problem = cp.Problem(objective, constraints)
+        # Absolute max per region
+        model.addCons(x[i] <= 20)
 
-    # Solve the problem using ECOS_BB
-    problem.solve(
-        solver=cp.ECOS_BB,
-        abstol=1e-6,
-        reltol=1e-6,
-        feastol=1e-6,
-        max_iters=10000
-    )
+        # Link x and z: if z[i] == 0, x[i] must be 0
+        model.addCons(x[i] <= z[i] * 20)
 
-    # Fallback: Round to nearest integer to enforce integrality
-    if x.value is not None:
-        optimal_x = np.round(x.value).astype(int)
+        # Link P and z: if z[i] == 0, P[i] must be 0
+        model.addCons(P[i] <= z[i] * 100)
+
+    # Add total cost constraint outside the loop
+    model.addCons(total_cost_expr <= budget)
+    print("Constraints added.")
+
+    # Objective: maximize profit
+    print("Defining objective function...")
+
+    profit_terms = []
+    for i in range(n_counties):
+        L = totalPop[i] * 0.25 * 12
+        # Linear revenue approximation
+        revenue_expr = 0.9 * L * P[i]
+        loss_expr = 0.082 * revenue_expr
+        operating_costs_expr = minwage[i] * (40 * 52) * 15 + rent[i] + loss_expr
+        profit_expr = revenue_expr - operating_costs_expr
+        profit_terms.append(profit_expr)
+
+    profit_expr_total = quicksum(profit_terms)
+    model.setObjective(profit_expr_total, "maximize")
+    print("Objective function defined.")
+
+    # Solve the problem
+    print("Starting SCIP optimization...")
+    model.optimize()
+
+    # Extract results
+    if model.getStatus() == "optimal":
+        print("Optimal solution found.")
+        optimal_x = [model.getVal(x[i]) for i in range(n_counties)]
+        optimal_P = [model.getVal(P[i]) for i in range(n_counties)]
+        optimal_z = [model.getVal(z[i]) for i in range(n_counties)]
+        total_profit = model.getObjVal()
     else:
+        print("No optimal solution found.")
         optimal_x = None
+        optimal_P = None
+        optimal_z = None
+        total_profit = None
 
-    optimal_z = z.value
+    # Debugging output
+    print(f"Solver status: {model.getStatus()}")
+    if optimal_x is not None:
+        print(f"Optimal x (first 10): {optimal_x[:10]}")
+        print(f"Optimal P (first 10): {optimal_P[:10]}")
+        print(f"Optimal z (first 10): {optimal_z[:10]}")
+        print(f"Total profit: {total_profit}")
 
-    # Debug prints to verify solver output
-    print("Solver status:", problem.status)
-    if x.value is not None:
-        print("Max optimized x[i]:", np.max(x.value))
-        print("First 10 optimized x:", x.value[:10])
-    else:
-        print("No solution returned for x; solver status:", problem.status)
-
-    # Debugging constraints
-    print("Debugging constraints:")
-    for i, constraint in enumerate(constraints):
-        print(f"Constraint {i}: {constraint.value if constraint.value is not None else 'Not computed'}")
-
-    # Debugging total cost
-    print("Total cost (variable + fixed):", total_cost.value if total_cost.value is not None else "Not computed")
-    print("Budget:", budget)
-
-    # Return the integer-rounded solution
+    # Return results
     return {
         'optimal_x': optimal_x,
+        'optimal_P': optimal_P,
         'optimal_z': optimal_z,
-        'profit': problem.value
+        'profit': total_profit
     }
