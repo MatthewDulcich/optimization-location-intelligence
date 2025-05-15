@@ -107,8 +107,8 @@ def calculate_rent_estimation():
     avg_annual_rent = merged_df['Estimated_annual_rent'].mean()  # Average annual rent
 
     # Fill missing values for states not in Zillow dataset
-    merged_df['Commercial_rent_per_sqft_year'].fillna(avg_rent_per_sqft, inplace=True)
-    merged_df['Estimated_annual_rent'].fillna(avg_annual_rent, inplace=True)
+    merged_df['Commercial_rent_per_sqft_year'] = merged_df['Commercial_rent_per_sqft_year'].fillna(avg_rent_per_sqft)
+    merged_df['Estimated_annual_rent'] = merged_df['Estimated_annual_rent'].fillna(avg_annual_rent)
 
     print(f"Average Rent Per Sqft: {avg_rent_per_sqft:.2f}")
     print(f"Average Annual Rent: {avg_annual_rent:.2f}")

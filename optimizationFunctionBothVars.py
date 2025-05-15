@@ -117,23 +117,6 @@ def loss(P, IR, demand):
 # ######################################################
 
 def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
-    '''
-    Optimizes the objective function using CVXPY.
-
-    Args:
-        totalPop: Total population in county (NumPy array or list).
-        IR: Income Ratio relative to maximum county income (NumPy array or list).
-        budget (int): Total budget for owning restaurants.
-        risk (float): Total acceptable risk ratio per location (cost/revenue).
-        N (int): Maximum number of stores to open.
-        minwage: Minimum wage in county (NumPy array or list).
-        rent: Rent of restaurant (NumPy array or list).
-        NRestaurants: Number of existing restaurants in each county (NumPy array or list).
-
-    Returns:
-        result: Result of optimization function.
-    '''
-
     # Convert all inputs to NumPy arrays to ensure compatibility
     totalPop = np.array(totalPop)
     IR = np.array(IR)
@@ -155,14 +138,12 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
     constraints.append(x >= 0)
 
     # Demand limit: if county i is served, x[i] <= demand[i]; if not served (z[i] = 0), x[i] = 0
-    for i in range(n_counties):
-        max_demand = totalPop[i] * 0.05  # Allow only 5% of the population as demand
-        constraints.append(x[i] <= max_demand * z[i])  # Big-M constraint linking x and z
+    max_demand = totalPop * 0.1  # Allow 10% of the population as demand
+    constraints.append(x <= cp.multiply(max_demand, z))
 
-        # Limit the number of restaurants per county
-        max_restaurants_per_county = 10  # Example: Limit to 10 restaurants per county
-        constraints.append(x[i] <= max_restaurants_per_county)
-        constraints.append(x[i] <= max_restaurants_per_county * z[i])  # Big-M constraint
+    # Limit the number of restaurants per county
+    max_restaurants_per_county = 20  # Increase the limit
+    constraints.append(x <= cp.multiply(max_restaurants_per_county, z))  # Use cp.multiply
 
     # Budget constraint: total cost (variable + fixed) cannot exceed budget
     variable_cost = cp.multiply(minwage, x) + rent
@@ -170,33 +151,51 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
     total_cost = cp.sum(variable_cost) + cp.sum(fixed_cost)
     constraints.append(total_cost <= budget)
 
-    # Limit the total number of restaurants
-    constraints.append(cp.sum(x) <= N)
-
     # Objective: maximize total profit
-    profit_terms = []
-    for i in range(n_counties):
-        a_i = totalPop[i] * 0.25 * 12  # Example demand intercept
-        b_i = 0.003  # Example price sensitivity (higher value means more sensitive to price)
-        # Concave revenue term: (a_i / b_i) * x[i] - (1 / b_i) * cp.square(x[i])
-        revenue_i = (a_i / b_i) * x[i] - (1 / b_i) * cp.square(x[i])
-        # Subtract costs: variable_cost[i] + fixed_cost[i] + penalty for each restaurant
-        profit_i = revenue_i - (variable_cost[i] + fixed_cost[i] + 1000 * x[i])
-        profit_terms.append(profit_i)
-
-    # Maximize total profit
-    objective = cp.Maximize(cp.sum(profit_terms))
+    a = totalPop * 0.25 * 365  # Vectorized demand intercept
+    b = 0.003  # Price sensitivity
+    revenue = cp.multiply(a / b, x) - cp.multiply(1 / b, cp.square(x))  # Vectorized revenue
+    profit = revenue - (variable_cost + fixed_cost + cp.multiply(1000, x))  # Vectorized profit
+    objective = cp.Maximize(cp.sum(profit))
 
     # Define the problem
     problem = cp.Problem(objective, constraints)
 
     # Solve the problem using ECOS_BB
-    problem.solve(solver=cp.ECOS_BB)
+    problem.solve(
+        solver=cp.ECOS_BB,
+        abstol=1e-6,
+        reltol=1e-6,
+        feastol=1e-6,
+        max_iters=10000
+    )
 
-    # Get the results
-    optimal_x = x.value  # Optimal number of units sold
-    optimal_z = z.value  # Optimal binary decisions
+    # Fallback: Round to nearest integer to enforce integrality
+    if x.value is not None:
+        optimal_x = np.round(x.value).astype(int)
+    else:
+        optimal_x = None
 
+    optimal_z = z.value
+
+    # Debug prints to verify solver output
+    print("Solver status:", problem.status)
+    if x.value is not None:
+        print("Max optimized x[i]:", np.max(x.value))
+        print("First 10 optimized x:", x.value[:10])
+    else:
+        print("No solution returned for x; solver status:", problem.status)
+
+    # Debugging constraints
+    print("Debugging constraints:")
+    for i, constraint in enumerate(constraints):
+        print(f"Constraint {i}: {constraint.value if constraint.value is not None else 'Not computed'}")
+
+    # Debugging total cost
+    print("Total cost (variable + fixed):", total_cost.value if total_cost.value is not None else "Not computed")
+    print("Budget:", budget)
+
+    # Return the integer-rounded solution
     return {
         'optimal_x': optimal_x,
         'optimal_z': optimal_z,

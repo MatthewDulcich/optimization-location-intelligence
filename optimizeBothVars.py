@@ -59,42 +59,37 @@ data.loc[data['id'] == '09190', 'id'] = '09001'  # Western Connecticut Planning 
 data['id'] = data['id'].astype(int)
 
 data = data.merge(restaurant[['fips', 'totalRestaurants']], left_on='id', right_on='fips', how='left')
+data.rename(columns={'totalRestaurants': 'HistoricRestaurants'}, inplace=True)
 data.loc[data['id'] == 46102, 'id'] = 46113  # Shannon County is Oglala Lakota
 
-data.loc[data['totalRestaurants'] == 0, 'totalRestaurants'] = data['totalRestaurants'].mean()
-data.loc[np.isnan(data['totalRestaurants']), 'totalRestaurants'] = data['totalRestaurants'].mean()
+data.loc[data['HistoricRestaurants'] == 0, 'HistoricRestaurants'] = data['HistoricRestaurants'].mean()
+data.loc[np.isnan(data['HistoricRestaurants']), 'HistoricRestaurants'] = data['HistoricRestaurants'].mean()
 
-# Run optimization in batches
-result_df = pd.DataFrame()
-for i in range(int(data.shape[0] / 100) + 1):
-    start = datetime.now()
-    data_batch = data.iloc[i * 100:(i + 1) * 100, :]
-    print(data_batch)
+# Limit data to the first 100 rows for testing
+data = data.head(20)
 
-    # Run optimization
-    results = optimize(
-        budget=budget,
-        N=N,
-        risk=risk,
-        totalPop=data_batch['Population'],
-        IR=data_batch['MeanIncomeRatio'],
-        minwage=data_batch['MinWage'],
-        rent=data_batch['Estimated_annual_rent'],
-        NRestaurants=data_batch['totalRestaurants']
-    )
-
-    # Add results to the batch
-    data_batch.loc[:, 'UnitsSold'] = results['optimal_x']
-    data_batch.loc[:, 'Served'] = results['optimal_z']
-    data_batch.loc[:, 'Profit'] = results['profit']
-    result_df = pd.concat([result_df, data_batch])
+# Run optimization on the full dataset
+results = optimize(
+    budget=budget,
+    N=N,
+    risk=risk,
+    totalPop=data['Population'],
+    IR=data['MeanIncomeRatio'],
+    minwage=data['MinWage'],
+    rent=data['Estimated_annual_rent'],
+    NRestaurants=data['HistoricRestaurants']
+)
+data['UnitsSold'] = results['optimal_x']
+data['Served'] = results['optimal_z']
+data['Profit'] = results['profit']
+result_df = data.copy()
 
 # Handle NaN values before plotting
-result_df['UnitsSold'] = result_df['UnitsSold'].fillna(0)
-result_df['Profit'] = result_df['Profit'].fillna(0)
+result_df['UnitsSold'] = pd.to_numeric(result_df['UnitsSold'], errors='coerce').fillna(0)
+result_df['Profit'] = pd.to_numeric(result_df['Profit'], errors='coerce').fillna(0)
 
-# Cap the maximum value of totalRestaurants to 10,000
-result_df['totalRestaurants'] = result_df['totalRestaurants'].clip(upper=100)
+# Cap the maximum value of historic restaurant counts for plotting
+result_df['HistoricRestaurants'] = result_df['HistoricRestaurants'].clip(upper=100)
 
 # Graphing results
 geoData = gpd.read_file(
@@ -149,10 +144,10 @@ plt.close()
 
 # Plot Total Restaurants by County
 ax = plt.axes(projection=gcrs.PlateCarree())
-norm = Normalize(vmin=0, vmax=100)  # Set color bar range from 0 to 300
+norm = Normalize(vmin=0, vmax=150)
 im = gplt.choropleth(
     result_df,
-    hue='totalRestaurants',
+    hue='HistoricRestaurants',
     projection=gcrs.PlateCarree(),
     cmap='plasma',
     ax=ax,
