@@ -80,7 +80,7 @@ results = optimize(
     NRestaurants=data['HistoricRestaurants']
 )
 data['UnitsSold'] = results['optimal_x']
-data['Served'] = results['optimal_z']
+data['Served'] = [1 if xi > 0 else 0 for xi in results['optimal_x']]
 data['Profit'] = results['profit']
 result_df = data.copy()
 

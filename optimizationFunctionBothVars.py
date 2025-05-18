@@ -1,233 +1,117 @@
 import numpy as np
-import pandas as pd
-from pyscipopt import Model, quicksum
-from pyscipopt import Expr
-
-'''
-    Since there are many variables in the optimization function,
-    we will use an order.
-    The order is as follows:
-    1. Variables: x, z
-    2. Integers: budget, N
-    3. Floats: risk
-    4. Dataframes: totalPop, IR, minwage, rent
-    5. Rest: demand, revenue, costs, loss
-'''
-
-NUMBER_OF_COUNTIES = 3143  # Number of counties
-# NUMBER_OF_COUNTIES = 100  # Number of counties
-
-# ######################################################
-# Main functions
-# ######################################################
-
-
-def profit(x, P, totalPop, IR, minwage, rent, NRestaurants):
-    '''
-    Calculates Profit = Revenue - Costs.
-
-    Args:
-        x: Total number of stores in given county.
-        P: Price.
-        totalPop: Total population in county.
-        IR: Income Ratio relative to maximum county income.
-        minwage: Minimum wage in county.
-        rent: Rent of restaurant.
-
-    Returns:
-        profit: Profit of restaurant.
-    '''
-    demand_val = demand(x, P, totalPop, NRestaurants)
-    rev = revenue(P, IR, demand_val)
-    cost = costs(P, IR, minwage, rent, demand_val)
-    return rev - cost
-
-
-def revenue(P, IR, demand):
-    '''
-    Calculates Revenue of Product.
-
-    Args:
-        P: Price of a given product.
-        IR: Income ratio of county to maximum county income (0 to 1).
-        demand: The demand of a given product.
-
-    Returns:
-        revenue: Demand times Price.
-    '''
-    return P**(IR**0.5) * demand
-
-
-def demand(x, P, totalPop, NRestaurants):
-    '''
-    Calculates demand as a function of price.
-
-    Args:
-        x: Total number of stores in given county.
-        P: Price.
-        totalPop: Total population in county.
-
-    Returns:
-        demand: Demand corresponding to input variables.
-    '''
-    a = 0.003 * P
-    if x >= 1:
-        L = totalPop * 0.25 * 12 / x
-    else:
-        L = 0
-    return L * np.exp(-a * P)
-
-
-def costs(P, IR, minwage, rent, demand, employees=15):
-    '''
-    Calculates costs of restaurant.
-
-    Args:
-        minwage: Minimum wage in county.
-        rent: Rent of restaurant.
-        demand: Demand of restaurant.
-        P: Price of restaurant.
-        IR: Income ratio of county to maximum county income (0 to 1).
-        employees: Number of employees in restaurant (default is 15).
-
-    Returns:
-        netCosts: Total costs of restaurant.
-    '''
-    loss_incurred = loss(P, IR, demand)
-    operating_costs = minwage * (40 * 52) * employees + rent + loss_incurred
-    return operating_costs
-
-
-def loss(P, IR, demand):
-    '''
-    Calculates losses: 8.2% of revenue incurred by restaurant.
-
-    Args:
-        P: Price of restaurant.
-        IR: Income ratio of county to maximum county income (0 to 1).
-        demand: Demand of restaurant.
-
-    Returns:
-        loss: Losses incurred by restaurant.
-    '''
-    return 0.082 * revenue(P, IR, demand)
-
-
-# ######################################################
-# SCIP Optimization
-# ######################################################
+from gekko import GEKKO
 
 def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
-    print("Starting optimization process...")
+    print("Starting GEKKO optimization...")
 
-    # Convert all inputs to NumPy arrays to ensure compatibility
+    # Convert inputs to NumPy arrays
     totalPop = np.array(totalPop)
     IR = np.array(IR)
     minwage = np.array(minwage)
     rent = np.array(rent)
     NRestaurants = np.array(NRestaurants)
 
-    # Number of counties
     n_counties = len(totalPop)
     print(f"Number of counties: {n_counties}")
 
-    # Create a SCIP model
-    model = Model("Restaurant Optimization")
+    # Initialize GEKKO model
+    m = GEKKO(remote=False)
+    print("GEKKO model initialized.")
 
-    # Enable verbose output
-    model.setIntParam("display/verblevel", 5)
-    model.redirectOutput()  # Redirect SCIP output to the console
+    # Variables
+    print("Defining variables...")
+    x = [m.Var(lb=0, ub=20, integer=True) for _ in range(n_counties)]  # NumStores
+    P = [m.Var(lb=0, ub=100) for _ in range(n_counties)]               # Price
+    print(f"Defined {len(x)} integer variables for NumStores.")
+    print(f"Defined {len(P)} continuous variables for Price.")
 
-    # Define variables
-    x = {}  # Integer variables for units sold in each county
-    P = {}  # Continuous variables for price in each county
-    z = {}  # Binary variables for whether a county is served
+    # Parameters
+    employees = 15
+    alpha = 0.1
+    print(f"Parameters set: employees={employees}, alpha={alpha}")
 
+    profit_chunks = []
+    cost_chunks = []
+
+    print("Adding constraints and calculating profit and cost terms...")
     for i in range(n_counties):
-        x[i] = model.addVar(vtype="I", name=f"x_{i}", lb=0)  # Integer variable
-        P[i] = model.addVar(vtype="C", name=f"P_{i}", lb=0, ub=100)  # Continuous variable with upper bound
-        z[i] = model.addVar(vtype="B", name=f"z_{i}")        # Binary variable
+        # Skip zero population counties
+        if totalPop[i] <= 0:
+            print(f"County {i}: Skipping due to zero population.")
+            m.Equation(x[i] == 0)
+            m.Equation(P[i] == 0)
+            continue
 
-    print("Variables defined.")
+        # Calculate demand, revenue, and cost
+        L = totalPop[i] * 0.25 * 12 / (x[i] + 1e-6)
+        demand = L * m.exp(-0.003 * P[i]**2)
+        revenue = P[i]**(IR[i]**0.5) * demand
+        loss = 0.082 * revenue
+        cost = minwage[i] * 40 * 52 * employees + rent[i] + loss
 
-    # Add constraints
-    print("Adding constraints...")
-    total_cost_expr = 0  # Initialize total cost expression
-    for i in range(n_counties):
-        # Define linear revenue approximation for constraints
-        L = totalPop[i] * 0.25 * 12
-        revenue_expr = 0.9 * L * P[i]
-        loss_expr = 0.082 * revenue_expr
+        # Append intermediate terms
+        cost_chunks.append(m.Intermediate(x[i] * cost))
+        profit_chunks.append(m.Intermediate(x[i] * (revenue - cost)))
 
-        # Define cost expression for constraints using linear approximation
-        operating_costs_expr = minwage[i] * (40 * 52) * 15 + rent[i] + loss_expr
+        # Add constraints
+        m.Equation(x[i] <= alpha * totalPop[i])
+        print(f"County {i}: Added constraint x[{i}] <= {alpha * totalPop[i]:.2f}")
+        m.Equation(x[i] <= 20)
+        print(f"County {i}: Added constraint x[{i}] <= 20")
 
-        # Accumulate total cost
-        total_cost_expr += operating_costs_expr
+    print("Constraints and intermediate terms added.")
 
-        # Population-based cap
-        model.addCons(x[i] <= totalPop[i] * 0.1)
-
-        # Absolute max per region
-        model.addCons(x[i] <= 20)
-
-        # Link x and z: if z[i] == 0, x[i] must be 0
-        model.addCons(x[i] <= z[i] * 20)
-
-        # Link P and z: if z[i] == 0, P[i] must be 0
-        model.addCons(P[i] <= z[i] * 100)
-
-    # Add total cost constraint outside the loop
-    model.addCons(total_cost_expr <= budget)
-    print("Constraints added.")
-
-    # Objective: maximize profit
-    print("Defining objective function...")
+    # Chunked summation to avoid GEKKO's 15,000-character limit
+    chunk_size = 200
+    print(f"Chunk size for summation: {chunk_size}")
 
     profit_terms = []
-    for i in range(n_counties):
-        L = totalPop[i] * 0.25 * 12
-        # Linear revenue approximation
-        revenue_expr = 0.9 * L * P[i]
-        loss_expr = 0.082 * revenue_expr
-        operating_costs_expr = minwage[i] * (40 * 52) * 15 + rent[i] + loss_expr
-        profit_expr = revenue_expr - operating_costs_expr
-        profit_terms.append(profit_expr)
+    for i in range(0, len(profit_chunks), chunk_size):
+        chunk = m.Intermediate(sum(profit_chunks[i:i + chunk_size]))
+        profit_terms.append(chunk)
+        print(f"Processed profit chunk {i // chunk_size + 1}.")
 
-    profit_expr_total = quicksum(profit_terms)
-    model.setObjective(profit_expr_total, "maximize")
-    print("Objective function defined.")
+    total_profit_expr = m.Intermediate(sum(profit_terms))
+    print("Total profit expression calculated.")
 
-    # Solve the problem
-    print("Starting SCIP optimization...")
-    model.optimize()
+    cost_terms = []
+    for i in range(0, len(cost_chunks), chunk_size):
+        chunk = m.Intermediate(sum(cost_chunks[i:i + chunk_size]))
+        cost_terms.append(chunk)
+        print(f"Processed cost chunk {i // chunk_size + 1}.")
+
+    total_cost_expr = m.Intermediate(sum(cost_terms))
+    print("Total cost expression calculated.")
+
+    # Budget constraint
+    m.Equation(total_cost_expr <= budget)
+    print(f"Added budget constraint: total_cost_expr <= {budget}")
+
+    # Max total restaurant constraint
+    m.Equation(m.sum([x[i] for i in range(n_counties)]) <= N)
+    print(f"Added max total restaurant constraint: sum(x) <= {N}")
+
+    # Objective
+    m.Obj(-total_profit_expr)  # Maximize profit
+    print("Objective function set to maximize total profit.")
+
+    # Solve
+    print("Starting solver...")
+    m.solve(disp=True)
+    print("Solver finished.")
 
     # Extract results
-    if model.getStatus() == "optimal":
-        print("Optimal solution found.")
-        optimal_x = [model.getVal(x[i]) for i in range(n_counties)]
-        optimal_P = [model.getVal(P[i]) for i in range(n_counties)]
-        optimal_z = [model.getVal(z[i]) for i in range(n_counties)]
-        total_profit = model.getObjVal()
-    else:
-        print("No optimal solution found.")
-        optimal_x = None
-        optimal_P = None
-        optimal_z = None
-        total_profit = None
+    print("Extracting results...")
+    optimal_x = [x[i].value[0] for i in range(n_counties)]
+    optimal_P = [P[i].value[0] for i in range(n_counties)]
 
-    # Debugging output
-    print(f"Solver status: {model.getStatus()}")
-    if optimal_x is not None:
-        print(f"Optimal x (first 10): {optimal_x[:10]}")
-        print(f"Optimal P (first 10): {optimal_P[:10]}")
-        print(f"Optimal z (first 10): {optimal_z[:10]}")
-        print(f"Total profit: {total_profit}")
+    # Approximate total profit
+    print("Optimization complete.")
+    for i in range(min(10, n_counties)):
+        print(f"County {i}: NumStores = {optimal_x[i]:.0f}, Price = {optimal_P[i]:.2f}")
 
-    # Return results
     return {
         'optimal_x': optimal_x,
         'optimal_P': optimal_P,
-        'optimal_z': optimal_z,
-        'profit': total_profit
+        'profit': -m.options.objfcnval
     }
