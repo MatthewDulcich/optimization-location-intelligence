@@ -18,11 +18,14 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
     m = GEKKO(remote=False)
     print("GEKKO model initialized.")
 
+    # Set maximum iterations
+    m.options.MAX_ITER = 10000
+
     # Variables
     print("Defining variables...")
-    x = [m.Var(lb=0, ub=20, integer=True) for _ in range(n_counties)]  # NumStores
-    P = [m.Var(lb=0, ub=100) for _ in range(n_counties)]               # Price
-    print(f"Defined {len(x)} integer variables for NumStores.")
+    x = [m.Var(lb=0, ub=20) for _ in range(n_counties)]  # NumStores
+    P = [m.Var(lb=5, ub=100) for _ in range(n_counties)]               # Set a more realistic lower bound
+    print(f"Defined {len(x)} variables for NumStores.")
     print(f"Defined {len(P)} continuous variables for Price.")
 
     # Parameters
@@ -43,21 +46,26 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
             continue
 
         # Calculate demand, revenue, and cost
-        L = totalPop[i] * 0.25 * 12 / (x[i] + 1e-6)
-        demand = L * m.exp(-0.003 * P[i]**2)
+        demand = totalPop[i] * 0.25 * 12 / (x[i] + 1e-6) * m.exp(-0.001 * P[i])
         revenue = P[i]**(IR[i]**0.5) * demand
+        print(f"County {i}: Demand = {demand}, Revenue = {revenue}")
         loss = 0.082 * revenue
-        cost = minwage[i] * 40 * 52 * employees + rent[i] + loss
+        cost = (minwage[i] * 40 * 52 * employees * 0.25) + (rent[i] * 0.25) + loss
+
+        # Print revenue, cost, and profit for the first 5 counties
+        if i < 5:  # Print for the first 5 counties
+            print(f"County {i}: Demand = {demand}, Revenue = {revenue}, Cost = {cost}, Profit = {revenue - cost}")
 
         # Append intermediate terms
         cost_chunks.append(m.Intermediate(x[i] * cost))
         profit_chunks.append(m.Intermediate(x[i] * (revenue - cost)))
 
         # Add constraints
-        m.Equation(x[i] <= alpha * totalPop[i])
-        print(f"County {i}: Added constraint x[{i}] <= {alpha * totalPop[i]:.2f}")
-        m.Equation(x[i] <= 20)
-        print(f"County {i}: Added constraint x[{i}] <= 20")
+        # m.Equation(revenue >= 1000)  # Example: Minimum revenue of 1000 per county
+        # m.Equation(x[i] <= alpha * totalPop[i])
+        # print(f"County {i}: Added constraint x[{i}] <= {alpha * totalPop[i]:.2f}")
+        # m.Equation(x[i] <= 20)
+        # print(f"County {i}: Added constraint x[{i}] <= 20")
 
     print("Constraints and intermediate terms added.")
 
@@ -87,9 +95,9 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants):
     m.Equation(total_cost_expr <= budget)
     print(f"Added budget constraint: total_cost_expr <= {budget}")
 
-    # Max total restaurant constraint
-    m.Equation(m.sum([x[i] for i in range(n_counties)]) <= N)
-    print(f"Added max total restaurant constraint: sum(x) <= {N}")
+    # # Max total restaurant constraint
+    # m.Equation(m.sum([x[i] for i in range(n_counties)]) <= N)
+    # print(f"Added max total restaurant constraint: sum(x) <= {N}")
 
     # Objective
     m.Obj(-total_profit_expr)  # Maximize profit
