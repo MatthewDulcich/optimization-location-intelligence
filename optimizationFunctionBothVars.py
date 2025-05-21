@@ -37,7 +37,7 @@ def profit(x, P, totalPop, IR, minwage, rent, NRestaurants):
         profit: Profit of restaurant.
     '''
 
-    demand_val = demand(x, P, totalPop, NRestaurants)
+    demand_val = demand(x, P, totalPop)#, NRestaurants)
     rev = revenue(P, IR, demand_val)
     cost = costs(P, IR, minwage, rent, demand_val)
     return rev - cost
@@ -73,7 +73,7 @@ def log_revenue(P, IR, log_demand):
     return log_demand + IR * np.log(P)
 
 
-def demand(x, P, totalPop, Nrestaurants):
+def demand(x, P, totalPop):#, Nrestaurants):
     '''
     Calculates demand as a function of price.
 
@@ -85,14 +85,15 @@ def demand(x, P, totalPop, Nrestaurants):
     Returns:
         demand: Demand corresponding to input variables.
     '''
-    a = 0.003 * P
+    a = 0.001 * P
 
     #L = totalPop*(0.075*12)
     #L = L - L * (1/Nrestaurants+x)*1000 * np.log(((1/totalPop)*10*x**2+1))
     # L: Maximum demand at unit price 1.0.
     #if x >= 1:
     if x >= 1:
-        L = totalPop*.25*12 / x
+        #L = totalPop*.25*12 / x
+        L = totalPop*.25*365 / x
     else:
         L = 0
     #else:
@@ -211,15 +212,15 @@ def getConstraints(budget, N, risk, totalPop, IR, minwage, rent, nvars):
     #rev = [revenue(P, IR, d) for P, IR, d in zip(P, IR, demand_val)] # Get revenue for risk constraint
     #risk_constraint = [(risk - c/r) for c, r in zip(cost,rev)] # Risk - cost / revenue > 0
 
-    def budget_constraint(x):
-        #P = x[NUMBER_OF_COUNTIES:]
-        #x = x[:NUMBER_OF_COUNTIES]
+    def budget_constraint(x,nvars):
+        P = x[int(nvars/2):]
+        x = x[:int(nvars/2)]
 
         demand_val = [demand(i,j,k) for i,j,k in zip(x, P, totalPop)]
         cost = [costs(P, IR, mw, r, d) for P,IR,mw,r,d in zip(P,IR,minwage,rent,demand_val)]
         total_cost = x.T @ cost # Get total costs for budget constraint
 
-        return budget - total_cost
+        return budget - total_cost / 1000000
 
     def total_stores_constraint(x,nvars):
         x = x[:int(nvars/2)]
@@ -235,8 +236,12 @@ def getConstraints(budget, N, risk, totalPop, IR, minwage, rent, nvars):
 
         return [(risk - c/r) if r != 0 else -1 for c, r in zip(cost,rev)]
 
+    def int_constraint(x,nvars):
+        x = x[:int(nvars/2)]
+        return max(int(x) - x)
+
     return [
-        #{'type': 'ineq', 'fun': lambda x: budget_constraint(x)}, # Budget >= total cost (make 1d scaler)
+        {'type': 'ineq', 'fun': lambda x: budget_constraint(x,nvars)}, # Budget >= total cost (make 1d scaler)
         {'type': 'eq', 'fun': lambda x: total_stores_constraint(x,nvars)}, # N >= sum(x)
         #{'type': 'ineq', 'fun': lambda x: risk_constraint(x)}, # risk > cost/revenue
         #{'type': 'ineq', 'fun': lambda x: x}, # All x, P > 0
@@ -268,7 +273,7 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants, nvars):
     '''
 
     x0 = np.ones(int(nvars/2))
-    x0[:N] = 1
+    x0[:N] = 1 # Start with N stores with cheapest rent for budget constraint
     P = 18 * np.ones(int(nvars/2))
     x0 = np.concatenate((x0,P))
 
@@ -284,7 +289,7 @@ def optimize(budget, N, risk, totalPop, IR, minwage, rent, NRestaurants, nvars):
         args=(totalPop, IR, minwage, rent, NRestaurants, nvars),
         constraints=constraints,
         bounds=bounds,
-        options = {'maxiter':500,'maxfun':300000},
+        options = {'maxiter':500},
         method = 'SLSQP'
     )
     return result
