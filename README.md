@@ -1,150 +1,151 @@
 # Optimization for Restaurant Location and Pricing
 
-This project optimizes the number of stores and pricing strategy for restaurants across counties to maximize profit while adhering to budget, risk, and operational constraints.
+This project optimizes the number of restaurant locations and product pricing across U.S. counties to maximize profit while satisfying constraints on budget, store limits, and operational cost-risk. The optimization uses real-world data on demographics, rent, and wages.
 
 ---
 
 ## Objective Function
 
-The **objective function** aims to **maximize profit** by minimizing the negative profit across all counties. The profit is calculated as:
+The optimization minimizes the **negative total profit**, defined as:
 
-**Profit = Revenue - Costs**
-
-The **objective function** is defined as:
-
-**Objective Function** = `-(1 / 100,000) * sum(x[i] * Profit(x[i], P[i], totalPop[i], IR[i], minwage[i], rent[i]))`
+```
+Objective Function = -(1 / 100,000) * sum(x[i] * Profit_i)
+```
 
 Where:
-- `x[i]`: Number of stores in county `i`.
-- `P[i]`: Price per product in county `i`.
-- `totalPop[i]`: Total population in county `i`.
-- `IR[i]`: Income ratio of county `i` relative to the maximum county income.
-- `minwage[i]`: Minimum wage in county `i`.
-- `rent[i]`: Rent of the restaurant in county `i`.
+- `x[i]`: Number of stores in county `i`
+- `Profit_i = Revenue_i - Cost_i`
+- `Revenue_i = P[i]^(sqrt(IR[i])) * Demand[i]`
+- `Demand[i] = (TotalPop[i] / x[i]) * 0.25 * 365 * exp(-0.001 * P[i]^2)`
+- `Cost_i = minwage[i] * 15 * 40 * 52 + rent[i] + 0.082 * Revenue_i`
 
 ---
 
 ## Constraints
 
-The optimization problem is subject to the following constraints:
-
 ### 1. Budget Constraint
-The total cost of opening and operating stores must not exceed the budget:
+```
+sum(x[i] * Cost_i) <= Budget
+```
 
-**Budget Constraint**:  
-`budget - sum(x[i] * Costs(P[i], IR[i], minwage[i], rent[i], demand[i])) >= 0`
+### 2. Store Count Constraint
+```
+sum(x[i]) = N
+```
 
-Where:
-- `Costs(P, IR, minwage, rent, demand) = minwage * employees + rent + loss`
-- `loss = 0.082 * Revenue(P, IR, demand)`
-
----
-
-### 2. Total Stores Constraint
-The total number of stores opened across all counties must not exceed the maximum allowed:
-
-**Total Stores Constraint**:  
-`N - sum(x[i]) = 0`
-
----
-
-### 3. Risk Constraint
-The risk ratio (cost/revenue) for each county must not exceed the acceptable risk threshold:
-
-**Risk Constraint**:  
-`risk - (Costs(P[i], IR[i], minwage[i], rent[i], demand[i]) / Revenue(P[i], IR[i], demand[i])) >= 0`
-
-If revenue is zero (`Revenue = 0`), the constraint defaults to `-1` to indicate infeasibility.
+### 3. Variable Bounds
+- `0 <= x[i] <= N`
+- `0 <= P[i] <= 30`
 
 ---
 
 ## Decision Variables
 
-1. **Number of Stores (`x`)**:
-   - `x[i]`: Number of stores in county `i`.
-   - Bounds: `0 <= x[i] <= 100`.
-
-2. **Price (`P`)**:
-   - `P[i]`: Price per product in county `i`.
-   - Bounds: `0 <= P[i] <= 50`.
+- `x[i]`: Number of stores in county `i` (continuous, rounded after optimization)
+- `P[i]`: Product price in county `i`
 
 ---
 
-## Functions
+## Solver and Optimization Approach
 
-### 1. Demand Function
-The demand for a product in a county is calculated as:
+We use the **SLSQP** (Sequential Least Squares Quadratic Programming) solver from `scipy.optimize` to solve the nonlinear, non-convex optimization problem. The solver:
+- Uses quadratic approximation of the Lagrangian
+- Supports general nonlinear equality and inequality constraints
+- Works with differentiable but non-convex functions
 
-**Demand(x, P, totalPop)** =  
-`(totalPop / x) * exp(-0.003 * P^2)` if `x >= 1` and `P <= 50`, otherwise `0`.
+### Other Solvers Considered
+
+| Solver         | Notes                                                                 |
+|----------------|-----------------------------------------------------------------------|
+| CVXPY          | Failed due to non-convex revenue and demand structure                |
+| Pyomo (IPOPT)  | Infeasible; sensitive to exponential terms and poor Jacobian scaling |
+| SCIP           | Did not converge on relaxed problem or integer form                  |
+| Gekko          | Performed better with nonlinear constraints, but tuning was difficult |
+| Genetic Algo   | Development incomplete due to time constraints                        |
 
 ---
 
-### 2. Revenue Function
-The revenue for a product in a county is calculated as:
+## Implementation Challenges
 
-**Revenue(P, IR, demand)** =  
-`P^(sqrt(IR)) * demand`
+- **Scaling**: 3000 counties × 2 variables = 6000+ variables → solved state-by-state
+- **Non-convexity**: Multiple local minima; initialization mattered
+- **Numerical Instability**: Exponential terms caused flat/steep gradients
+- **Poor Jacobians**: Solver sensitivity due to ill-conditioned derivatives
 
 ---
 
-### 3. Costs Function
-The costs for operating a restaurant in a county are calculated as:
+## Repository Setup
 
-**Costs(P, IR, minwage, rent, demand)** =  
-`minwage * employees + rent + loss`
+### Clone the Repository
+```bash
+git clone https://github.com/MatthewDulcich/optimization-location-intelligence.git
+cd optimization-location-intelligence
+```
 
-Where:  
-`loss = 0.082 * Revenue(P, IR, demand)`
+### Set Up Python Environment with `pyenv`
+```bash
+pyenv install 3.11.9
+pyenv virtualenv 3.11.9 opt-env
+pyenv local opt-env
+```
+
+### Install Python Dependencies
+```bash
+pip install -r requirements.txt
+```
 
 ---
 
 ## Optimization Workflow
 
-### 1. Initialization
-Start with an initial guess for `x` and `P`:
-
-- `x_0 = [1, 1, ..., 1]` (for `N` counties)
-- `P_0 = [18, 18, ..., 18]` (initial price per county)
-
----
-
-### 2. Constraints
-Apply the budget, total stores, and risk constraints.
-
----
-
-### 3. Bounds
-Ensure `x` and `P` remain within their respective bounds.
-
----
-
-### 4. Optimization
-Use the `gd_minimize` function to minimize the objective function subject to the constraints and bounds.
-
----
-
-## Implementation
-
-The optimization is implemented in the `optimize` function:
 ```python
-def optimize(budget, N, risk, totalPop, IR, minwage, rent):
-    x0 = np.zeros(NUMBER_OF_COUNTIES)
+def optimize(budget, N, totalPop, IR, minwage, rent):
+    x0 = np.zeros(NUM_COUNTIES)
     x0[:N] = 1
-    P = 18 * np.ones(NUMBER_OF_COUNTIES)
+    P = 18 * np.ones(NUM_COUNTIES)
     x0 = np.concatenate((x0, P))
 
-    constraints = getConstraints(x0, budget, N, risk, totalPop, IR, minwage, rent)
+    constraints = getConstraints(x0, budget, N, totalPop, IR, minwage, rent)
+    bounds = [(0, N)] * NUM_COUNTIES + [(0, 30)] * NUM_COUNTIES
 
-    bounds = [(0, 100) for _ in range(NUMBER_OF_COUNTIES)] + \
-             [(0, 50) for _ in range(NUMBER_OF_COUNTIES)]
-
-    result = gd_minimize(
+    result = minimize(
         fun=objectiveFunction,
         x0=x0,
         args=(totalPop, IR, minwage, rent),
-        constraints=constraints,
+        method='SLSQP',
         bounds=bounds,
+        constraints=constraints,
         options={'maxiter': 1000, 'disp': True}
     )
     return result
+```
+
+---
+
+## Project Structure
+
+```
+optimization-location-intelligence/
+├── data/                  # Datasets and preprocessing
+├── scripts/               # Optimization and analysis scripts
+├── results/               # Output from runs
+├── plots/                 # Graphs and visualizations
+├── main.py                # Main driver
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## Authors
+
+- Matthew Dulcich
+- James Frech
+- Peeyush Dyavarashetty
+- Krishna Taduri
+
+---
+
+## License
+
+MIT License
